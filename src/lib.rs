@@ -46,6 +46,9 @@ static NOTO_SANS_BENGALI: LazyLock<Font> = LazyLock::new(|| {
 static NOTO_SANS_THAI: LazyLock<Font> =
     LazyLock::new(|| unzip_and_babelfont(include_bytes!("../resources/notosansthai.babelfont.gz")));
 
+static NOTO_SANS_CJK_BASIC: LazyLock<Font> =
+    LazyLock::new(|| unzip_and_babelfont(include_bytes!("../resources/CJK-8k.babelfont.gz")));
+    
 /// Represents the coverage level of Latin characters in a fake font.
 #[derive(PartialEq, Eq)]
 pub enum LatinCoverage {
@@ -141,6 +144,11 @@ impl FakeFont {
     pub fn add_bengali(&mut self) {
         self.add_subfont(&NOTO_SANS_BENGALI)
     }
+    /// Adds the CJK basic set to the fake font.
+    pub fn add_cjk_basic(&mut self) {
+        self.add_subfont(&NOTO_SANS_CJK_BASIC)
+    }
+
     /// Adds the Thai script to the fake font.
     pub fn add_thai(&mut self) {
         self.add_subfont(&NOTO_SANS_THAI)

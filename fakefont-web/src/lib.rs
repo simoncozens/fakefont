@@ -118,6 +118,12 @@ impl FakeFont {
         self.inner.add_bengali();
     }
 
+    /// Merge the CJK glyphs into the font.
+    #[wasm_bindgen(js_name = addCjkBasic)]
+    pub fn add_cjk_basic(&mut self) {
+        self.inner.add_cjk_basic();
+    }
+
     /// Merge the Thai glyphs, kerning and feature code into the font.
     #[wasm_bindgen(js_name = addThai)]
     pub fn add_thai(&mut self) {

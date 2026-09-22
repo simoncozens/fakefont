@@ -14,6 +14,7 @@
      font.addStandardArabic()                      // the Arabic kernel subset
      font.addUrduAndFarsi()                        // the whole Naskh Arabic font
      font.addBengali()
+     font.addCJKBasic()
      font.addThai()
      font.addWeightAxis(min, max)                  // only when that axis is enabled
      font.addWidthAxis(min, max)
@@ -170,6 +171,7 @@ async function compileFont(options) {
   // which is why they are constructor flags above.
   if (scripts.has("devanagari")) font.addDevanagari();
   if (scripts.has("bengali")) font.addBengali();
+  if (scripts.has("cjk-basic")) font.addCjkBasic();
   if (scripts.has("thai")) font.addThai();
   if (scripts.has("standard-arabic")) font.addStandardArabic();
   if (scripts.has("farsi-urdu")) font.addUrduAndFarsi();

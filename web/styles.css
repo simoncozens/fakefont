@@ -189,12 +189,12 @@ body {
   grid-template-columns: repeat(4, minmax(0, 1fr));
 }
 
-/* Scripts come in tiers of decreasing priority; a hairline separates them.
+/* Scripts come in tiers of decreasing priority; a thick line separates them.
    Sits in the flex gap of .option-group, so the rule is centred between the
    last tile of one tier and the first tile of the next. */
 .tiles.script-tier + .tiles.script-tier {
-  border-top: 1px solid var(--border);
-  padding-top: 0.7rem;
+  border-top: 3px solid var(--border);
+  padding-top: 1rem;
 }
 
 @media (max-width: 400px) {
