@@ -14,8 +14,6 @@ jobs:
         run: sudo apt-get update && sudo apt-get install protobuf-compiler
       - name: Install wasm-pack
         run: cargo install wasm-pack
-      - name: Build
-        run: cd fontspector-web; RUSTFLAGS='-C target-feature=+bulk-memory' wasm-pack build
       - name: Build web site
         run: |
           wasm-pack build fakefont-web --target web --out-dir ../web/pkg
