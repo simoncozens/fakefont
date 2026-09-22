@@ -209,10 +209,11 @@ function axisRows() {
 }
 
 /**
- * Append an empty axis row.
+ * Append an axis row.
  * @param {Partial<CustomAxis>} [values]
+ * @param {boolean} [focus] Leave the tag focused, unless we are restoring.
  */
-function addAxisRow(values = {}) {
+function addAxisRow(values = {}, focus = true) {
   const row = els.axisRowTemplate.content.firstElementChild.cloneNode(true);
   const field = (selector) => row.querySelector(selector);
 
@@ -228,13 +229,15 @@ function addAxisRow(values = {}) {
 
   els.axesBody.append(row);
   refreshAxes();
-  field(".axis-tag-input").focus();
+  saveSettingsSoon();
+  if (focus) field(".axis-tag-input").focus();
   return row;
 }
 
 function removeAxisRow(row) {
   row.remove();
   refreshAxes();
+  saveSettingsSoon();
 }
 
 /**
@@ -548,6 +551,118 @@ function humanBytes(bytes) {
   return `${(kb / 1024).toFixed(2)} MB`;
 }
 
+// ------------------------------------------------------------------ storage
+
+/**
+ * Where the choices live between visits. The version suffix means a future
+ * change to the shape can start from scratch instead of misreading old data.
+ */
+const STORAGE_KEY = "how-big-is-a-font.settings.v1";
+
+/** @returns {object|null} */
+function readStoredSettings() {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY);
+    return raw ? JSON.parse(raw) : null;
+  } catch (error) {
+    // Storage can be unavailable (private windows, blocked site data) and the
+    // value can be junk. Either way, fall back to the defaults.
+    console.warn("[how-big-is-a-font] could not read saved settings", error);
+    return null;
+  }
+}
+
+let saveTimer = null;
+
+/** Remember the current choices, coalescing bursts of typing into one write. */
+function saveSettingsSoon() {
+  clearTimeout(saveTimer);
+  saveTimer = setTimeout(() => {
+    saveTimer = null;
+    try {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(collectOptions()));
+    } catch (error) {
+      console.warn("[how-big-is-a-font] could not save settings", error);
+    }
+  }, 250);
+}
+
+/** Forget the saved choices. */
+function clearSettings() {
+  try {
+    localStorage.removeItem(STORAGE_KEY);
+  } catch (error) {
+    console.warn("[how-big-is-a-font] could not clear settings", error);
+  }
+}
+
+/** Check the radio in the group `name` whose value matches, if there is one. */
+function selectRadio(name, value) {
+  if (typeof value !== "string") return;
+  const input = Array.from(
+    document.querySelectorAll(`input[name="${name}"]`),
+  ).find((candidate) => candidate.value === value);
+  if (input) input.checked = true;
+}
+
+/**
+ * A stored number as an input value. `null` is how JSON records an input that
+ * was left empty, and it goes back to being empty rather than to the default.
+ */
+function storedNumber(value, fallback) {
+  if (typeof value === "number") return String(value);
+  if (value === null) return "";
+  return String(fallback);
+}
+
+/**
+ * Put back the choices from the last visit. Anything missing, unrecognised or
+ * malformed is skipped, so a stale record can never leave the page stuck.
+ * @param {any} stored
+ */
+function applySettings(stored) {
+  if (!stored || typeof stored !== "object") return;
+
+  selectRadio("latin-coverage", stored.latinCoverage);
+
+  if (Array.isArray(stored.scripts)) {
+    for (const box of document.querySelectorAll('input[name="script"]')) {
+      box.checked = stored.scripts.includes(box.value);
+    }
+  }
+
+  for (const { tag } of AXES) {
+    selectRadio(`axis-${tag}`, stored.axes?.[tag]?.preset ?? "none");
+  }
+
+  if (Array.isArray(stored.customAxes)) {
+    els.axesBody.replaceChildren();
+    for (const axis of stored.customAxes) {
+      if (!axis || typeof axis !== "object") continue;
+      addAxisRow(
+        {
+          tag: axis.tag,
+          name: axis.name,
+          low: storedNumber(axis.low, NEW_AXIS.low),
+          default: storedNumber(axis.default, NEW_AXIS.default),
+          high: storedNumber(axis.high, NEW_AXIS.high),
+          affectsMetrics: axis.affectsMetrics,
+          affectsKerning: axis.affectsKerning,
+        },
+        false,
+      );
+    }
+  }
+
+  if (typeof stored.kerning === "boolean") {
+    document.getElementById("adjust-kerning").checked = stored.kerning;
+  }
+  if (typeof stored.advanceWidths === "boolean") {
+    document.getElementById("adjust-advance-widths").checked =
+      stored.advanceWidths;
+  }
+}
+
 // -------------------------------------------------------------------- wiring
 
 els.compileButton.addEventListener("click", run);
@@ -555,7 +670,10 @@ els.compileButton.addEventListener("click", run);
 els.addAxisButton.addEventListener("click", () => addAxisRow());
 
 // Rows come and go, so the table's own listeners are delegated.
-els.axesBody.addEventListener("input", () => refreshAxes());
+els.axesBody.addEventListener("input", () => {
+  refreshAxes();
+  saveSettingsSoon();
+});
 els.axesBody.addEventListener("click", (event) => {
   const button = event.target.closest(".btn-remove-axis");
   if (button) removeAxisRow(button.closest("tr"));
@@ -569,6 +687,7 @@ document.addEventListener("change", (event) => {
   ) {
     refreshAxes();
   }
+  saveSettingsSoon();
 });
 
 // Keep the download button from doing anything when it is inert.
@@ -578,11 +697,13 @@ els.download.addEventListener("click", (event) => {
 
 setDownload(null);
 els.notice.hidden = true;
+applySettings(readStoredSettings());
 refreshAxes();
 
 // Handy when poking at this from the devtools console.
 globalThis.HowBigIsAFont = {
   addAxisRow,
+  clearSettings,
   collectOptions,
   renderResults,
   run,

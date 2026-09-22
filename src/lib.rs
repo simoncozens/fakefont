@@ -261,9 +261,9 @@ impl FakeFont {
             serde_json::Value::Bool(affects_kerning),
         );
         let mut map = vec![
-            (UserCoord::new(low), DesignCoord::new(-1.0)),
-            (UserCoord::new(default), DesignCoord::new(0.0)),
-            (UserCoord::new(high), DesignCoord::new(1.0)),
+            (UserCoord::new(low), DesignCoord::new(low)),
+            (UserCoord::new(default), DesignCoord::new(default)),
+            (UserCoord::new(high), DesignCoord::new(high)),
         ];
         map.dedup_by_key(|(user, _design)| user.to_f64());
         self.0.axes.push(babelfont::Axis {
@@ -288,7 +288,7 @@ impl FakeFont {
             default_location.insert(
                 axis.tag,
                 axis.default
-                    .map(|uc| DesignCoord::new(user_to_design(axis, uc.to_f64())))
+                    .map(|uc| DesignCoord::new(uc.to_f64()))
                     .unwrap_or(DesignCoord::new(0.0)),
             );
         }
@@ -298,15 +298,15 @@ impl FakeFont {
         for axis in &self.0.axes {
             let min = axis
                 .min
-                .map(|uc| DesignCoord::new(user_to_design(axis, uc.to_f64())))
+                .map(|uc| DesignCoord::new(uc.to_f64()))
                 .unwrap_or(DesignCoord::new(0.0));
             let max = axis
                 .max
-                .map(|uc| DesignCoord::new(user_to_design(axis, uc.to_f64())))
+                .map(|uc| DesignCoord::new(uc.to_f64()))
                 .unwrap_or(DesignCoord::new(0.0));
             let default = axis
                 .default
-                .map(|uc| DesignCoord::new(user_to_design(axis, uc.to_f64())))
+                .map(|uc| DesignCoord::new(uc.to_f64()))
                 .unwrap_or(DesignCoord::new(0.0));
             if corner_locations.is_empty() {
                 corner_locations.push({
@@ -392,19 +392,6 @@ impl FakeFont {
     }
 }
 
-/// Convert a user-space coordinate on `axis` into design space.
-///
-/// Master locations hold design coordinates, but an axis's min/default/max are
-/// user coordinates. For `wght` and `wdth` the two coincide; an arbitrary axis
-/// maps its whole range onto -1..1, so its corners have to be converted or the
-/// masters end up somewhere fontir is not looking for them.
-fn user_to_design(axis: &Axis, user: f64) -> f64 {
-    axis.map
-        .as_ref()
-        .and_then(|map| map.iter().find(|(u, _)| u.to_f64() == user))
-        .map(|(_, design)| design.to_f64())
-        .unwrap_or(user)
-}
 
 /// Returns a map of table tags to their lengths for the given font bytes.
 pub fn table_stats(font: &[u8]) -> Result<HashMap<String, usize>, String> {
