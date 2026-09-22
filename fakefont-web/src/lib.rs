@@ -420,6 +420,29 @@ mod tests {
         assert_eq!(font.master_count(), 3, "low, default and high corners");
     }
 
+    /// The South Asian scripts whose feature code refers to unencoded variants
+    /// of Latin glyphs. The merge used to drop those variants, so these three
+    /// compiled to "Glyph hyphen.<script> not found".
+    #[test]
+    fn scripts_with_variants_compile() {
+        #[allow(clippy::type_complexity)]
+        let scripts: [(&str, fn(&mut FakeFont)); 3] = [
+            ("tamil", FakeFont::add_tamil),
+            ("telugu", FakeFont::add_telugu),
+            ("kannada", FakeFont::add_kannada),
+        ];
+
+        for (name, add) in scripts {
+            let mut font = FakeFont::build("kernel", false, false).expect("build");
+            add(&mut font);
+            font.fill_out_masters(false, false);
+            let bytes = font
+                .compile_bytes()
+                .unwrap_or_else(|error| panic!("{name} failed to compile: {error}"));
+            assert!(bytes.len() > 5_000, "{name} produced {} bytes", bytes.len());
+        }
+    }
+
     #[test]
     fn arbitrary_axes_add_masters() {
         let mut one = FakeFont::build("kernel", false, false).expect("build");

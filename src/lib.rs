@@ -1,24 +1,24 @@
 //! A fake font library for testing and development purposes.
-//! 
+//!
 //! Provides a `FakeFont` type that can be used to generate fonts with specific scripts and axes for testing purposes.
 #![deny(missing_docs)]
+use babelfont::filters::{FontFilter, RetainGlyphs};
 use babelfont::{Axis, FormatSpecific};
 use babelfont::{
     BabelfontError, DesignCoord, DesignLocation, Font, LayerType::DefaultForMaster, SmolStr, Tag,
     UserCoord,
 };
 use flate2::read::GzDecoder;
-use indexmap::IndexMap;
-use rand::RngExt as _;
-use std::collections::{HashMap, HashSet};
-use std::io::Read;
-use std::sync::LazyLock;
-use babelfont::filters::{FontFilter, RetainGlyphs};
 use fontmerge::{GlyphsetFilter, fontsubset};
 use google_fonts_glyphsets::{
     GF_ARABIC_KERNEL, GF_CYRILLIC_CORE, GF_GREEK_CORE, GF_LATIN_AFRICAN, GF_LATIN_CORE,
     GF_LATIN_KERNEL, GF_LATIN_PLUS, GF_LATIN_VIETNAMESE,
 };
+use indexmap::IndexMap;
+use rand::RngExt as _;
+use std::collections::{HashMap, HashSet};
+use std::io::Read;
+use std::sync::LazyLock;
 
 fn unzip_and_babelfont(bytes: &[u8]) -> Font {
     let mut d = GzDecoder::new(bytes);
@@ -48,12 +48,15 @@ static NOTO_SANS_THAI: LazyLock<Font> =
 
 static NOTO_SANS_CJK_BASIC: LazyLock<Font> =
     LazyLock::new(|| unzip_and_babelfont(include_bytes!("../resources/CJK-8k.babelfont.gz")));
-static NOTO_SANS_KANNADA: LazyLock<Font> =
-    LazyLock::new(|| unzip_and_babelfont(include_bytes!("../resources/notosanskannada.babelfont.gz")));
-static NOTO_SANS_TAMIL: LazyLock<Font> =
-    LazyLock::new(|| unzip_and_babelfont(include_bytes!("../resources/notosanstamil.babelfont.gz")));
-static NOTO_SANS_TELUGU: LazyLock<Font> =
-    LazyLock::new(|| unzip_and_babelfont(include_bytes!("../resources/notosanstelugu.babelfont.gz")));
+static NOTO_SANS_KANNADA: LazyLock<Font> = LazyLock::new(|| {
+    unzip_and_babelfont(include_bytes!("../resources/notosanskannada.babelfont.gz"))
+});
+static NOTO_SANS_TAMIL: LazyLock<Font> = LazyLock::new(|| {
+    unzip_and_babelfont(include_bytes!("../resources/notosanstamil.babelfont.gz"))
+});
+static NOTO_SANS_TELUGU: LazyLock<Font> = LazyLock::new(|| {
+    unzip_and_babelfont(include_bytes!("../resources/notosanstelugu.babelfont.gz"))
+});
 
 /// Represents the coverage level of Latin characters in a fake font.
 #[derive(PartialEq, Eq)]
@@ -68,7 +71,6 @@ pub enum LatinCoverage {
 
 /// The main type representing a fake font.
 pub struct FakeFont(Font);
-
 
 impl FakeFont {
     /// Creates a new fake font with the specified Latin coverage and optional Greek and Cyrillic scripts.
@@ -173,34 +175,41 @@ impl FakeFont {
     }
 
     fn add_subfont(&mut self, subfont: &Font) {
-        let current_glyphs = self
+        // Tracked as we go, so glyphs added by this call can't collide with
+        // each other either.
+        let mut taken_names = self
             .0
             .glyphs
             .iter()
             .map(|g| g.name.clone())
-            .collect::<Vec<SmolStr>>();
-        let current_unicodes = self
+            .collect::<HashSet<SmolStr>>();
+        let mut taken_codepoints = self
             .0
             .glyphs
             .iter()
             .flat_map(|g| g.codepoints.iter())
             .cloned()
             .collect::<HashSet<u32>>();
-        for deva_glyph in subfont.glyphs.iter() {
-            if deva_glyph
-                .codepoints
-                .iter()
-                .any(|c| current_unicodes.contains(c))
-            {
+        for subfont_glyph in subfont.glyphs.iter() {
+            if taken_names.contains(&subfont_glyph.name) {
                 continue;
             }
-            if !current_glyphs.contains(&deva_glyph.name) {
-                let mut glyph = deva_glyph.clone();
-                for layer in glyph.layers.iter_mut() {
-                    layer.master = DefaultForMaster(self.0.masters[0].id.clone());
-                }
-                self.0.glyphs.push(glyph);
+            let mut glyph = subfont_glyph.clone();
+            // A codepoint the font already maps belongs to whichever glyph got
+            // there first, but that is no reason to drop this one. Script
+            // variants like `hyphen.tamil` or `slash.UIknda` deliberately share
+            // a codepoint with the Latin glyph and exist to be referenced by
+            // that script's feature code; dropping them leaves the feature code
+            // pointing at a glyph that isn't there, which fontir rejects with
+            // "Glyph X not found". Keep the glyph, drop only the codepoint, so
+            // the cmap stays unambiguous and the feature code still resolves.
+            glyph.codepoints.retain(|c| !taken_codepoints.contains(c));
+            for layer in glyph.layers.iter_mut() {
+                layer.master = DefaultForMaster(self.0.masters[0].id.clone());
             }
+            taken_names.insert(glyph.name.clone());
+            taken_codepoints.extend(glyph.codepoints.iter().cloned());
+            self.0.glyphs.push(glyph);
         }
         self.0.masters[0]
             .kerning
@@ -305,7 +314,7 @@ impl FakeFont {
     }
 
     /// Creates additional master locations for the fake font based on the specified axes, filling out the corners of the design space.
-    /// 
+    ///
     /// This must be called after all axes have been added to the fake font and before the font is compiled.
     pub fn fill_out_masters(&mut self, kerning: bool, advance_widths: bool) {
         // Make first master the default
@@ -417,7 +426,6 @@ impl FakeFont {
         Ok(bytes)
     }
 }
-
 
 /// Returns a map of table tags to their lengths for the given font bytes.
 pub fn table_stats(font: &[u8]) -> Result<HashMap<String, usize>, String> {
@@ -617,5 +625,51 @@ mod tests {
         assert_eq!(font_core.0.masters.len(), 2);
         println!("Map: {:?}", font_core.0.axes[0].map);
         font_core.compile().expect("Compilation failed");
+    }
+
+    /// Combining scripts must stay unambiguous, whatever the order they are
+    /// merged in: no codepoint may end up on two glyphs (the cmap would be
+    /// ambiguous) and no two glyphs may share a name (references would be). A
+    /// script variant that shares a codepoint with a Latin glyph is kept, but
+    /// loses the codepoint.
+    #[test]
+    fn merged_fonts_stay_unambiguous() {
+        let mut font = FakeFont::new(LatinCoverage::Full, false, false);
+        font.add_devanagari();
+        font.add_tamil();
+        font.add_telugu();
+        font.add_kannada();
+        font.add_standard_arabic();
+        font.add_urdu_and_farsi();
+
+        let mut by_codepoint: HashMap<u32, SmolStr> = HashMap::new();
+        let mut by_name: HashSet<SmolStr> = HashSet::new();
+        for glyph in font.0.glyphs.iter() {
+            assert!(
+                by_name.insert(glyph.name.clone()),
+                "duplicate glyph name {}",
+                glyph.name
+            );
+            for codepoint in glyph.codepoints.iter() {
+                if let Some(other) = by_codepoint.insert(*codepoint, glyph.name.clone()) {
+                    panic!("U+{codepoint:04X} is on both {other} and {}", glyph.name);
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn combinations_compile() {
+        let mut one = FakeFont::new(LatinCoverage::Full, false, false);
+        one.add_tamil();
+        one.fill_out_masters(false, false);
+        let bytes = one.compile().expect("compile");
+        assert!(!bytes.is_empty(), "compiled font should have non-zero size");
+
+        let mut one = FakeFont::new(LatinCoverage::Full, false, false);
+        one.add_devanagari();
+        one.add_tamil();
+        let bytes = one.compile().expect("compile");
+        assert!(!bytes.is_empty(), "compiled font should have non-zero size");
     }
 }
