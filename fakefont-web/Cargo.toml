@@ -1,0 +1,23 @@
+[package]
+name = "fakefont-web"
+version = "0.1.0"
+edition = "2024"
+description = "wasm-bindgen bindings for fakefont, used by the \"How Big Is A Font?\" web app"
+publish = false
+
+[lib]
+# cdylib for the wasm module, rlib so `cargo test` can link the host tests.
+crate-type = ["cdylib", "rlib"]
+
+[dependencies]
+fakefont = { path = ".." }
+wasm-bindgen = "0.2"
+# Only for js_sys::Map, used to hand the table sizes to JavaScript as a Map.
+js-sys = "0.3"
+console_error_panic_hook = "0.1"
+
+# `rand` (used by fakefont when jittering outlines) needs an entropy source on
+# wasm; getrandom's `wasm_js` backend routes that through Crypto.getRandomValues.
+# Only enabled on wasm, so native builds of the workspace are unaffected.
+[target.'cfg(target_family = "wasm")'.dependencies]
+getrandom = { version = "0.4.3", features = ["wasm_js"] }

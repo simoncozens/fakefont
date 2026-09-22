@@ -1,0 +1,549 @@
+<!doctype html>
+<!--
+  "How Big Is A Font?" — front-end.
+
+  Static page: open it with any local web server from this folder, e.g.
+      python3 -m http.server 8000   (then visit http://localhost:8000/)
+  or   npx serve .
+
+  The font compiler is the `fakefont-web` crate, built to wasm into ./pkg:
+      wasm-pack build fakefont-web --target web --out-dir ../web/pkg
+  (run from the repository root). See app.js for the rest.
+-->
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="color-scheme" content="light dark" />
+    <title>How Big Is A Font?</title>
+    <meta
+      name="description"
+      content="Build a synthetic font with a chosen glyphset and designspace, and measure how big the compiled binary is."
+    />
+    <link
+      rel="stylesheet"
+      href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css"
+    />
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <header class="masthead">
+      <div class="container">
+        <h1 class="masthead-title">How Big Is A&nbsp;Font?</h1>
+      </div>
+    </header>
+
+    <main class="container pb-5">
+      <div class="row g-4">
+        <!-- ============================ Left pane: glyphset ============================ -->
+        <div class="col-lg-5">
+          <section class="pane h-100" aria-labelledby="glyphset-heading">
+            <h2 class="pane-heading" id="glyphset-heading">Glyphset</h2>
+
+            <div
+              class="option-group"
+              role="radiogroup"
+              aria-labelledby="latin-label"
+            >
+              <p class="group-label" id="latin-label">Latin coverage</p>
+              <div class="tiles tiles-3">
+                <input
+                  class="tile-input"
+                  type="radio"
+                  name="latin-coverage"
+                  id="latin-full"
+                  value="full"
+                  checked
+                />
+                <label class="tile" for="latin-full">
+                  <span class="tile-icon" aria-hidden="true">Ẳ</span>
+                  <span class="tile-label">Full</span>
+                </label>
+
+                <input
+                  class="tile-input"
+                  type="radio"
+                  name="latin-coverage"
+                  id="latin-core"
+                  value="core"
+                />
+                <label class="tile" for="latin-core">
+                  <span class="tile-icon" aria-hidden="true">Ä</span>
+                  <span class="tile-label">Core</span>
+                </label>
+
+                <input
+                  class="tile-input"
+                  type="radio"
+                  name="latin-coverage"
+                  id="latin-kernel"
+                  value="kernel"
+                />
+                <label class="tile" for="latin-kernel">
+                  <span class="tile-icon" aria-hidden="true">A</span>
+                  <span class="tile-label">Kernel</span>
+                </label>
+              </div>
+            </div>
+
+            <div class="option-group">
+              <p class="group-label">Additional scripts</p>
+              <div class="tiles tiles-2 script-tier">
+                <input
+                  class="tile-input"
+                  type="checkbox"
+                  name="script"
+                  id="script-greek"
+                  value="greek"
+                />
+                <label class="tile" for="script-greek">
+                  <span class="tile-icon" aria-hidden="true">Ω</span>
+                  <span class="tile-label">Greek</span>
+                </label>
+
+                <input
+                  class="tile-input"
+                  type="checkbox"
+                  name="script"
+                  id="script-cyrillic"
+                  value="cyrillic"
+                />
+                <label class="tile" for="script-cyrillic">
+                  <span class="tile-icon" aria-hidden="true">Д</span>
+                  <span class="tile-label">Cyrillic</span>
+                </label>
+              </div>
+
+              <div class="tiles tiles-2 script-tier">
+                <input
+                  class="tile-input"
+                  type="checkbox"
+                  name="script"
+                  id="script-devanagari"
+                  value="devanagari"
+                />
+                <label class="tile" for="script-devanagari">
+                  <span class="tile-icon" aria-hidden="true">क</span>
+                  <span class="tile-label">Devanagari</span>
+                </label>
+
+                <input
+                  class="tile-input"
+                  type="checkbox"
+                  name="script"
+                  id="script-standard-arabic"
+                  value="standard-arabic"
+                />
+                <label class="tile" for="script-standard-arabic">
+                  <span class="tile-icon" aria-hidden="true">ب</span>
+                  <span class="tile-label">Standard Arabic</span>
+                </label>
+              </div>
+
+              <div class="tiles tiles-2 script-tier">
+                <input
+                  class="tile-input"
+                  type="checkbox"
+                  name="script"
+                  id="script-bengali"
+                  value="bengali"
+                />
+                <label class="tile" for="script-bengali">
+                  <span class="tile-icon" aria-hidden="true">ব</span>
+                  <span class="tile-label">Bengali</span>
+                </label>
+
+                <input
+                  class="tile-input"
+                  type="checkbox"
+                  name="script"
+                  id="script-thai"
+                  value="thai"
+                />
+                <label class="tile" for="script-thai">
+                  <span class="tile-icon" aria-hidden="true">ก</span>
+                  <span class="tile-label">Thai</span>
+                </label>
+              </div>
+
+              <div class="tiles tiles-2 script-tier">
+                <input
+                  class="tile-input"
+                  type="checkbox"
+                  name="script"
+                  id="script-farsi-urdu"
+                  value="farsi-urdu"
+                />
+                <label class="tile" for="script-farsi-urdu">
+                  <span class="tile-icon" aria-hidden="true">چ</span>
+                  <span class="tile-label">Farsi/Urdu</span>
+                </label>
+              </div>
+
+              <p class="group-hint">
+                Farsi/Urdu brings the whole Naskh Arabic font, so it already
+                covers Standard Arabic. More scripts coming later.
+              </p>
+            </div>
+          </section>
+        </div>
+
+        <!-- ========================== Right pane: designspace ========================== -->
+        <div class="col-lg-7">
+          <section class="pane h-100" aria-labelledby="designspace-heading">
+            <h2 class="pane-heading" id="designspace-heading">Designspace</h2>
+
+            <div class="axis" data-axis="wght">
+              <div class="axis-head">
+                <span class="axis-name" id="axis-wght-label">Weight</span>
+                <code class="axis-tag">wght</code>
+              </div>
+              <div
+                class="tiles tiles-4"
+                role="radiogroup"
+                aria-labelledby="axis-wght-label"
+              >
+                <input
+                  class="tile-input"
+                  type="radio"
+                  name="axis-wght"
+                  id="wght-none"
+                  value="none"
+                  checked
+                />
+                <label class="tile tile-compact" for="wght-none">
+                  <span class="tile-value">None</span>
+                  <span class="tile-sub">static</span>
+                </label>
+
+                <input
+                  class="tile-input"
+                  type="radio"
+                  name="axis-wght"
+                  id="wght-below"
+                  value="below"
+                  data-min="100"
+                  data-max="400"
+                />
+                <label class="tile tile-compact" for="wght-below">
+                  <span class="tile-value">100&ndash;400</span>
+                  <span class="tile-sub">below default</span>
+                </label>
+
+                <input
+                  class="tile-input"
+                  type="radio"
+                  name="axis-wght"
+                  id="wght-above"
+                  value="above"
+                  data-min="400"
+                  data-max="700"
+                />
+                <label class="tile tile-compact" for="wght-above">
+                  <span class="tile-value">400&ndash;700</span>
+                  <span class="tile-sub">above default</span>
+                </label>
+
+                <input
+                  class="tile-input"
+                  type="radio"
+                  name="axis-wght"
+                  id="wght-full"
+                  value="full"
+                  data-min="100"
+                  data-max="700"
+                />
+                <label class="tile tile-compact" for="wght-full">
+                  <span class="tile-value">100&ndash;700</span>
+                  <span class="tile-sub">full range</span>
+                </label>
+              </div>
+            </div>
+
+            <div class="axis" data-axis="wdth">
+              <div class="axis-head">
+                <span class="axis-name" id="axis-wdth-label">Width</span>
+                <code class="axis-tag">wdth</code>
+              </div>
+              <div
+                class="tiles tiles-4"
+                role="radiogroup"
+                aria-labelledby="axis-wdth-label"
+              >
+                <input
+                  class="tile-input"
+                  type="radio"
+                  name="axis-wdth"
+                  id="wdth-none"
+                  value="none"
+                  checked
+                />
+                <label class="tile tile-compact" for="wdth-none">
+                  <span class="tile-value">None</span>
+                  <span class="tile-sub">static</span>
+                </label>
+
+                <input
+                  class="tile-input"
+                  type="radio"
+                  name="axis-wdth"
+                  id="wdth-below"
+                  value="below"
+                  data-min="75"
+                  data-max="100"
+                />
+                <label class="tile tile-compact" for="wdth-below">
+                  <span class="tile-value">75&ndash;100</span>
+                  <span class="tile-sub">below default</span>
+                </label>
+
+                <input
+                  class="tile-input"
+                  type="radio"
+                  name="axis-wdth"
+                  id="wdth-above"
+                  value="above"
+                  data-min="100"
+                  data-max="125"
+                />
+                <label class="tile tile-compact" for="wdth-above">
+                  <span class="tile-value">100&ndash;125</span>
+                  <span class="tile-sub">above default</span>
+                </label>
+
+                <input
+                  class="tile-input"
+                  type="radio"
+                  name="axis-wdth"
+                  id="wdth-full"
+                  value="full"
+                  data-min="75"
+                  data-max="125"
+                />
+                <label class="tile tile-compact" for="wdth-full">
+                  <span class="tile-value">75&ndash;125</span>
+                  <span class="tile-sub">full range</span>
+                </label>
+              </div>
+            </div>
+
+            <div class="option-group">
+              <div class="group-head">
+                <p class="group-label">Custom axes</p>
+                <button type="button" class="btn-add-axis" id="add-axis-button">
+                  <span aria-hidden="true">+</span> Add axis
+                </button>
+              </div>
+
+              <div class="axes-wrap" id="axes-wrap" hidden>
+                <table class="axes-table" id="axes-table">
+                  <caption class="visually-hidden">
+                    Custom designspace axes
+                  </caption>
+                  <thead>
+                    <tr>
+                      <th scope="col" class="axes-tag-cell">Tag</th>
+                      <th scope="col" class="axes-name-cell">Name</th>
+                      <th scope="col" class="axes-num-cell">Low</th>
+                      <th scope="col" class="axes-num-cell">Default</th>
+                      <th scope="col" class="axes-num-cell">High</th>
+                      <th scope="col" class="axes-tick-cell">
+                        Affects metrics
+                      </th>
+                      <th scope="col" class="axes-tick-cell">
+                        Affects kerning
+                      </th>
+                      <th scope="col" class="axes-drop-cell">
+                        <span class="visually-hidden">Remove</span>
+                      </th>
+                    </tr>
+                  </thead>
+                  <tbody id="axes-body"></tbody>
+                </table>
+              </div>
+
+              <p class="group-hint" id="axes-hint">
+                No custom axes yet. <strong>Add axis</strong> builds one with
+                its own tag, name and range.
+              </p>
+              <p class="axes-error" id="axes-error" role="alert" hidden></p>
+
+              <template id="axis-row-template">
+                <tr>
+                  <td class="axes-tag-cell">
+                    <input
+                      class="form-control form-control-sm axis-input axis-tag-input"
+                      type="text"
+                      maxlength="4"
+                      autocomplete="off"
+                      autocapitalize="off"
+                      spellcheck="false"
+                      placeholder="slnt"
+                      aria-label="Axis tag, four printable ASCII characters"
+                    />
+                  </td>
+                  <td class="axes-name-cell">
+                    <input
+                      class="form-control form-control-sm axis-input axis-name-input"
+                      type="text"
+                      autocomplete="off"
+                      placeholder="Slant"
+                      aria-label="Axis name"
+                    />
+                  </td>
+                  <td class="axes-num-cell">
+                    <input
+                      class="form-control form-control-sm axis-input axis-num axis-low-input"
+                      type="number"
+                      step="any"
+                      aria-label="Low value"
+                    />
+                  </td>
+                  <td class="axes-num-cell">
+                    <input
+                      class="form-control form-control-sm axis-input axis-num axis-default-input"
+                      type="number"
+                      step="any"
+                      aria-label="Default value"
+                    />
+                  </td>
+                  <td class="axes-num-cell">
+                    <input
+                      class="form-control form-control-sm axis-input axis-num axis-high-input"
+                      type="number"
+                      step="any"
+                      aria-label="High value"
+                    />
+                  </td>
+                  <td class="axes-tick-cell">
+                    <input
+                      class="form-check-input axis-tick axis-metrics-input"
+                      type="checkbox"
+                      checked
+                      aria-label="Affects metrics"
+                    />
+                  </td>
+                  <td class="axes-tick-cell">
+                    <input
+                      class="form-check-input axis-tick axis-kerning-input"
+                      type="checkbox"
+                      checked
+                      aria-label="Affects kerning"
+                    />
+                  </td>
+                  <td class="axes-drop-cell">
+                    <button
+                      type="button"
+                      class="btn-remove-axis"
+                      aria-label="Remove this axis"
+                    >
+                      &times;
+                    </button>
+                  </td>
+                </tr>
+              </template>
+            </div>
+
+            <div class="option-group">
+              <p class="group-label">Master interpolation</p>
+              <div class="switches">
+                <div class="form-check form-switch">
+                  <input
+                    class="form-check-input"
+                    type="checkbox"
+                    role="switch"
+                    id="adjust-kerning"
+                    checked
+                  />
+                  <label class="form-check-label" for="adjust-kerning"
+                    >Adjust kerning</label
+                  >
+                </div>
+                <div class="form-check form-switch">
+                  <input
+                    class="form-check-input"
+                    type="checkbox"
+                    role="switch"
+                    id="adjust-advance-widths"
+                    checked
+                  />
+                  <label class="form-check-label" for="adjust-advance-widths"
+                    >Adjust advance widths</label
+                  >
+                </div>
+              </div>
+            </div>
+          </section>
+        </div>
+      </div>
+
+      <!-- ================================ Compile ================================ -->
+      <div class="compile-bar">
+        <button type="button" class="btn-compile" id="compile-button">
+          <span
+            class="btn-compile-spinner spinner-border spinner-border-sm"
+            aria-hidden="true"
+          ></span>
+          <span class="btn-compile-label">Compile font</span>
+        </button>
+      </div>
+
+      <!-- ================================ Results =============================== -->
+      <section class="results" id="results" hidden aria-live="polite">
+        <div class="results-body" id="results-body">
+          <div class="results-summary">
+            <div>
+              <p class="results-size">
+                <span class="results-stats js-results-stats" hidden></span>
+                <span class="results-human js-total-human">&nbsp;</span>
+              </p>
+              <p>
+                (<span class="js-total-bytes">&mdash;</span>
+                <span class="unit">bytes</span>)
+              </p>
+            </div>
+            <div class="results-actions">
+              <a
+                class="btn btn-download"
+                id="download-button"
+                href="#"
+                download="fakefont.ttf"
+              >
+                Download TTF
+              </a>
+            </div>
+          </div>
+
+          <p class="results-notice" id="results-notice" hidden></p>
+
+          <div class="table-responsive">
+            <table class="table table-sm" id="table-breakdown">
+              <thead>
+                <tr>
+                  <th scope="col">Table</th>
+                  <th scope="col" class="text-end">Bytes</th>
+                </tr>
+              </thead>
+              <tbody></tbody>
+              <tfoot>
+                <tr>
+                  <th scope="row">Total</th>
+                  <td class="text-end js-total-bytes">&mdash;</td>
+                </tr>
+              </tfoot>
+            </table>
+          </div>
+        </div>
+      </section>
+    </main>
+
+    <footer class="page-footer">
+      <div class="container">
+        Sizes are indicative: the font is synthetic, so treat them as an
+        estimate of the real thing.
+      </div>
+    </footer>
+
+    <script type="module" src="app.js"></script>
+  </body>
+</html>
