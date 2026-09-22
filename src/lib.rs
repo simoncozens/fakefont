@@ -48,7 +48,13 @@ static NOTO_SANS_THAI: LazyLock<Font> =
 
 static NOTO_SANS_CJK_BASIC: LazyLock<Font> =
     LazyLock::new(|| unzip_and_babelfont(include_bytes!("../resources/CJK-8k.babelfont.gz")));
-    
+static NOTO_SANS_KANNADA: LazyLock<Font> =
+    LazyLock::new(|| unzip_and_babelfont(include_bytes!("../resources/notosanskannada.babelfont.gz")));
+static NOTO_SANS_TAMIL: LazyLock<Font> =
+    LazyLock::new(|| unzip_and_babelfont(include_bytes!("../resources/notosanstamil.babelfont.gz")));
+static NOTO_SANS_TELUGU: LazyLock<Font> =
+    LazyLock::new(|| unzip_and_babelfont(include_bytes!("../resources/notosanstelugu.babelfont.gz")));
+
 /// Represents the coverage level of Latin characters in a fake font.
 #[derive(PartialEq, Eq)]
 pub enum LatinCoverage {
@@ -135,7 +141,7 @@ impl FakeFont {
         .unwrap();
         self.add_subfont(&subset)
     }
-    
+
     /// Adds the Urdu and Farsi scripts to the fake font.
     pub fn add_urdu_and_farsi(&mut self) {
         self.add_subfont(&NOTO_NASKH_ARABIC)
@@ -152,6 +158,18 @@ impl FakeFont {
     /// Adds the Thai script to the fake font.
     pub fn add_thai(&mut self) {
         self.add_subfont(&NOTO_SANS_THAI)
+    }
+    /// Adds the Tamil script to the fake font.
+    pub fn add_tamil(&mut self) {
+        self.add_subfont(&NOTO_SANS_TAMIL)
+    }
+    /// Adds the Telugu script to the fake font.
+    pub fn add_telugu(&mut self) {
+        self.add_subfont(&NOTO_SANS_TELUGU)
+    }
+    /// Adds the Kannada script to the fake font.
+    pub fn add_kannada(&mut self) {
+        self.add_subfont(&NOTO_SANS_KANNADA)
     }
 
     fn add_subfont(&mut self, subfont: &Font) {

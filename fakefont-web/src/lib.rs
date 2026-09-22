@@ -13,6 +13,7 @@
 //! font.addStandardArabic(); // or addUrduAndFarsi() for the whole Naskh font
 //! font.addBengali();
 //! font.addThai();
+//! // also: addTamil(), addTelugu(), addKannada(), addCjkBasic()
 //! font.addWeightAxis(100, 700);
 //! font.addArbitraryAxis("slnt", "Slant", -15, 15, 0, true, true);
 //! font.fillOutMasters(/* adjust kerning */ true, /* adjust advance widths */ true);
@@ -82,52 +83,13 @@ impl FakeFont {
     /// `latinCoverage` is `"full"`, `"core"` or `"kernel"`; `greek` and
     /// `cyrillic` pull in those core glyphsets.
     ///
-    /// Devanagari and Arabic are not flags here: they are merged in afterwards
-    /// with [`FakeFont::add_devanagari`] and [`FakeFont::add_arabic`], so that
-    /// the scripts sliced out of the Latin font can supply glyphs those fonts
-    /// also have without colliding.
+    /// Devanagari and the other subfonts are not flags here: they are merged in
+    /// afterwards with [`FakeFont::add_devanagari`] and friends, so that the
+    /// scripts sliced out of the Latin font can supply glyphs those fonts also
+    /// have without colliding.
     #[wasm_bindgen(constructor)]
     pub fn new(latin_coverage: &str, greek: bool, cyrillic: bool) -> Result<FakeFont, JsError> {
         Self::build(latin_coverage, greek, cyrillic).map_err(|error| JsError::new(&error))
-    }
-
-    /// Merge the Devanagari glyphs, kerning and feature code into the font.
-    #[wasm_bindgen(js_name = addDevanagari)]
-    pub fn add_devanagari(&mut self) {
-        self.inner.add_devanagari();
-    }
-
-    /// Merge the standard Arabic kernel subset of Naskh Arabic.
-    #[wasm_bindgen(js_name = addStandardArabic)]
-    pub fn add_standard_arabic(&mut self) {
-        self.inner.add_standard_arabic();
-    }
-
-    /// Merge the whole Naskh Arabic font, Farsi and Urdu additions included.
-    ///
-    /// A superset of [`FakeFont::add_standard_arabic`], so asking for both is
-    /// harmless — the second call only adds what is still missing.
-    #[wasm_bindgen(js_name = addUrduAndFarsi)]
-    pub fn add_urdu_and_farsi(&mut self) {
-        self.inner.add_urdu_and_farsi();
-    }
-
-    /// Merge the Bengali glyphs, kerning and feature code into the font.
-    #[wasm_bindgen(js_name = addBengali)]
-    pub fn add_bengali(&mut self) {
-        self.inner.add_bengali();
-    }
-
-    /// Merge the CJK glyphs into the font.
-    #[wasm_bindgen(js_name = addCjkBasic)]
-    pub fn add_cjk_basic(&mut self) {
-        self.inner.add_cjk_basic();
-    }
-
-    /// Merge the Thai glyphs, kerning and feature code into the font.
-    #[wasm_bindgen(js_name = addThai)]
-    pub fn add_thai(&mut self) {
-        self.inner.add_thai();
     }
 
     /// Add a `wght` axis spanning `low`..`high` user units.
@@ -197,6 +159,52 @@ impl FakeFont {
     pub fn compile(&self) -> Result<Vec<u8>, JsError> {
         self.compile_bytes().map_err(|error| JsError::new(&error))
     }
+}
+
+/// Generate one forwarding binding per subfont the library can merge in.
+///
+/// They are all the same three lines — take `&mut self`, call the library
+/// method of the same name — so the list below is the only place a script has
+/// to be named here. Adding a script to the page means one line in the
+/// invocation and one tile in `web/index.html`.
+///
+/// The binding's name is given separately because wasm-bindgen does not
+/// camel-case method names for us.
+macro_rules! subfont_bindings {
+    ($( $js_name:ident => $rust_name:ident : $doc:literal ; )*) => {
+        #[wasm_bindgen]
+        impl FakeFont {
+            $(
+                #[doc = $doc]
+                #[wasm_bindgen(js_name = $js_name)]
+                pub fn $rust_name(&mut self) {
+                    self.inner.$rust_name();
+                }
+            )*
+        }
+    };
+}
+
+subfont_bindings! {
+    addDevanagari => add_devanagari:
+        "Merge the Devanagari glyphs, kerning and feature code into the font.";
+    addStandardArabic => add_standard_arabic:
+        "Merge the standard Arabic kernel subset of Naskh Arabic.";
+    addUrduAndFarsi => add_urdu_and_farsi:
+        "Merge the whole Naskh Arabic font, Farsi and Urdu additions included. \
+         This is a superset of addStandardArabic, so asking for both is harmless: \
+         the second call only adds what is still missing.";
+    addBengali => add_bengali:
+        "Merge the Bengali glyphs, kerning and feature code into the font.";
+    addCJKBasic => add_cjk_basic: "Merge the basic CJK glyphs into the font.";
+    addThai => add_thai:
+        "Merge the Thai glyphs, kerning and feature code into the font.";
+    addTamil => add_tamil:
+        "Merge the Tamil glyphs, kerning and feature code into the font.";
+    addTelugu => add_telugu:
+        "Merge the Telugu glyphs, kerning and feature code into the font.";
+    addKannada => add_kannada:
+        "Merge the Kannada glyphs, kerning and feature code into the font.";
 }
 
 /// The byte length of every table in a compiled font, as a `Map<string, number>`.
@@ -312,12 +320,16 @@ mod tests {
         let baseline = empty.glyph_count();
 
         #[allow(clippy::type_complexity)]
-        let scripts: [(&str, fn(&mut FakeFont)); 5] = [
+        let scripts: [(&str, fn(&mut FakeFont)); 9] = [
             ("devanagari", FakeFont::add_devanagari),
             ("standard arabic", FakeFont::add_standard_arabic),
             ("farsi and urdu", FakeFont::add_urdu_and_farsi),
             ("bengali", FakeFont::add_bengali),
+            ("cjk basic", FakeFont::add_cjk_basic),
             ("thai", FakeFont::add_thai),
+            ("tamil", FakeFont::add_tamil),
+            ("telugu", FakeFont::add_telugu),
+            ("kannada", FakeFont::add_kannada),
         ];
 
         for (name, add) in scripts {
