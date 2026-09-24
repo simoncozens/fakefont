@@ -14,15 +14,16 @@
 //! font.addArbitraryAxis("slnt", "Slant", -15, 15, 0, true, true);
 //! font.fillOutMasters(/* adjust kerning */ true, /* adjust advance widths */ true);
 //!
-//! const bytes = font.compile();     // Uint8Array
-//! const tables = tableStats(bytes); // Map<string, number>
-//!
+//! // Read these first: compile() consumes the font.
 //! font.masterCount(); // masters created by fillOutMasters
 //! font.glyphCount(); // glyphs in the font
+//!
+//! const bytes = font.compile();     // Uint8Array
+//! const tables = tableStats(bytes); // Map<string, number>
 //! ```
 
-use wasm_bindgen::JsError;
 use wasm_bindgen::prelude::*;
+use wasm_bindgen::JsError;
 
 use js_sys::Map;
 
@@ -46,7 +47,7 @@ impl FakeFont {
         Ok(FakeFont { inner })
     }
 
-    fn compile_bytes(&self) -> Result<Vec<u8>, String> {
+    fn compile_bytes(self) -> Result<Vec<u8>, String> {
         self.inner.compile().map_err(|error| error.to_string())
     }
 
@@ -160,7 +161,14 @@ impl FakeFont {
     }
 
     /// Compile to an OpenType binary, returned as a `Uint8Array`.
-    pub fn compile(&self) -> Result<Vec<u8>, JsError> {
+    ///
+    /// This **consumes the font**. Taking `self` lets the library hand its data
+    /// to the compiler instead of cloning it, which is worth having for the
+    /// multi-megabyte subsets the page can ask for. wasm-bindgen zeroes the
+    /// JavaScript object's pointer as part of that, so any later call on it
+    /// fails with "null pointer passed to rust" — read
+    /// [`FakeFont::master_count`] and [`FakeFont::glyph_count`] first.
+    pub fn compile(self) -> Result<Vec<u8>, JsError> {
         self.compile_bytes().map_err(|error| JsError::new(&error))
     }
 }
@@ -356,9 +364,7 @@ mod tests {
     /// rename that quietly dropped one shows up here.
     #[test]
     fn every_script_adds_glyphs() {
-        let baseline = FakeFont::build("kernel", &[])
-            .expect("build")
-            .glyph_count();
+        let baseline = FakeFont::build("kernel", &[]).expect("build").glyph_count();
         assert!(baseline > 0);
 
         for name in SCRIPTS {

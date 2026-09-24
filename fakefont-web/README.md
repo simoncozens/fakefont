@@ -84,6 +84,11 @@ this after cloning (and after changing the library).
   `OtherSubsets`, and a tile in `web/index.html`.
 - `farsi-urdu` pulls in the whole Naskh Arabic glyphset, which already contains
   the standard Arabic kernel, so the two Arabic tiles compose safely.
+- `compile()` consumes the font. The library moves its data into the compiler
+  rather than cloning it — worth having for a multi-megabyte subset — and
+  wasm-bindgen zeroes the JS object's pointer as part of that, so any later call
+  on it throws "null pointer passed to rust". Read `masterCount()` and
+  `glyphCount()` before compiling.
 - `rand` needs entropy on wasm, so `getrandom`'s `wasm_js` backend is enabled
   for wasm targets only (see `Cargo.toml`); no `.cargo/config.toml` is needed.
 - `cargo test -p fakefont-web` runs on the host and exercises the full

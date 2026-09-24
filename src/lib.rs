@@ -239,11 +239,11 @@ impl FakeFont {
     }
 
     /// Compiles the fake font into a binary font file, returning the resulting bytes or an error.
-    pub fn compile(&self) -> Result<Vec<u8>, BabelfontError> {
+    pub fn compile(self) -> Result<Vec<u8>, BabelfontError> {
         use babelfont::convertors::fontir::CompilationOptions;
 
         let bytes = babelfont::convertors::fontir::BabelfontIrSource::compile(
-            self.0.clone(),
+            self.0,
             CompilationOptions::default(),
         )?;
         Ok(bytes)

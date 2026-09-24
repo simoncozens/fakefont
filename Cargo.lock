@@ -67,7 +67,7 @@ checksum = "f2032f911046de80f0a198e0901378627c33f59ea0ac00e363d481118bd70a53"
 [[package]]
 name = "babelfont"
 version = "0.2.1"
-source = "git+https://github.com/simoncozens/babelfont-rs#062add2dca0e4cd89ffa9a15dc3970ad70a286fa"
+source = "git+https://github.com/simoncozens/babelfont-rs#91bf8bb58b826a6010461694d2071a15d5807967"
 dependencies = [
  "chrono",
  "csv",
@@ -778,7 +778,7 @@ dependencies = [
 [[package]]
 name = "fontmerge"
 version = "0.1.0"
-source = "git+https://github.com/simoncozens/babelfont-rs#062add2dca0e4cd89ffa9a15dc3970ad70a286fa"
+source = "git+https://github.com/simoncozens/babelfont-rs#91bf8bb58b826a6010461694d2071a15d5807967"
 dependencies = [
  "babelfont",
  "fea-rs-ast",
@@ -2250,7 +2250,7 @@ dependencies = [
 [[package]]
 name = "sr-aef"
 version = "0.1.0"
-source = "git+https://github.com/simoncozens/babelfont-rs#062add2dca0e4cd89ffa9a15dc3970ad70a286fa"
+source = "git+https://github.com/simoncozens/babelfont-rs#91bf8bb58b826a6010461694d2071a15d5807967"
 dependencies = [
  "fea-rs-ast",
  "fontdrasil",

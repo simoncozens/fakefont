@@ -56,6 +56,14 @@ const AXIS_TAG_PATTERN = /^[\x20-\x7e]{4}$/;
 /** Values a newly added custom axis starts with. */
 const NEW_AXIS = { low: 0, default: 0, high: 100 };
 
+/**
+ * The two halves of a build, as the spinner names them. Generating slices the
+ * chosen scripts out of the source font and expands the designspace into
+ * masters; compiling hands that font to fontc.
+ */
+const GENERATING = "Generating…";
+const COMPILING = "Compiling…";
+
 // ------------------------------------------------------------------ elements
 
 const els = {
@@ -159,9 +167,9 @@ function loadWasm() {
 async function compileFont(options) {
   const wasm = await loadWasm();
 
-  // Every subset is chosen at construction, and the tile values are the names
-  // the wasm module expects, so the checked boxes can be passed straight
-  // through.
+  // Generating. Every subset is chosen at construction, and the tile values are
+  // the names the wasm module expects, so the checked boxes can be passed
+  // straight through.
   const font = new wasm.FakeFont(options.latinCoverage, options.scripts);
   if (options.axes.wght)
     font.addWeightAxis(options.axes.wght.min, options.axes.wght.max);
@@ -181,13 +189,20 @@ async function compileFont(options) {
   }
   font.fillOutMasters(options.kerning, options.advanceWidths);
 
+  // Read these before compiling. compile() consumes the font so that the library
+  // doesn't have to clone it, which leaves the object unusable afterwards. They
+  // still come after fillOutMasters, so the counts reflect the built designspace.
+  const masters = font.masterCount();
+  const glyphs = font.glyphCount();
+
+  // Compiling. The font has been generated, and from here on it is fontc's.
+  await setPhase(COMPILING);
   const fontBytes = font.compile();
   return {
     fontBytes,
     tables: wasm.tableStats(fontBytes),
-    // Read after fillOutMasters, so the count reflects the built designspace.
-    masters: font.masterCount(),
-    glyphs: font.glyphCount(),
+    masters,
+    glyphs,
   };
 }
 
@@ -338,12 +353,12 @@ async function run() {
     return;
   }
 
-  setBusy(true);
+  setBusy(true, GENERATING);
 
   try {
     const options = collectOptions();
     // Let the browser paint the spinner before we hand over to wasm, which
-    // blocks the main thread for the whole compilation.
+    // blocks the main thread for the rest of the build.
     await yieldToBrowser();
     const result = await compileFont(options);
     renderResults(result);
@@ -386,12 +401,13 @@ function yieldToBrowser() {
  * While busy the results panel is hidden rather than left showing the previous
  * run's numbers, and the button carries the spinner.
  * @param {boolean} state
+ * @param {string} [label] What the spinner says while it is busy.
  */
-function setBusy(state) {
+function setBusy(state, label) {
   busy = state;
   els.compileButton.classList.toggle("is-busy", state);
   els.compileButton.setAttribute("aria-busy", String(state));
-  els.compileLabel.textContent = state ? "Compiling…" : "Compile font";
+  els.compileLabel.textContent = state ? label : "Compile font";
   refreshCompileButton();
 
   if (state) {
@@ -400,6 +416,18 @@ function setBusy(state) {
     els.notice.hidden = true;
     setDownload(null);
   }
+}
+
+/**
+ * Rename the current phase and give the browser a frame to paint it. Each phase
+ * blocks the main thread until it is done, so without the yield the label would
+ * only ever change after the work it describes had finished.
+ * @param {string} label
+ * @returns {Promise<void>}
+ */
+async function setPhase(label) {
+  els.compileLabel.textContent = label;
+  await yieldToBrowser();
 }
 
 // ------------------------------------------------------------------ results
