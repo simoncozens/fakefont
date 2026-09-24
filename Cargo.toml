@@ -12,7 +12,9 @@ indexmap = "2.14.2"
 rand = "0.10.2"
 serde_json = "1.0.151"
 skrifa = "0.47.0"
-babelfont = { git = "https://github.com/simoncozens/babelfont-rs", package = "babelfont" }
+babelfont = { git = "https://github.com/simoncozens/babelfont-rs", package = "babelfont", default-features = false, features = [
+    "fontir",
+] }
 fontmerge = { git = "https://github.com/simoncozens/babelfont-rs", package = "fontmerge" }
 
 [workspace]
@@ -21,3 +23,12 @@ resolver = "3"
 # Plain `cargo build` / `cargo test` at the root stay native-only; the wasm
 # crate is built explicitly with wasm-pack.
 default-members = ["."]
+
+# fea-rs 1.0.0 as published on crates.io panics while building a format-1
+# contextual lookup whose context contains a single-glyph class.
+# Fixed in git, but git head also bumps read-fonts, so we can't use that.
+# Use a vendored version instead with the fix cherry-picked.
+# Drop this and go back to the crates.io release once the whole fontc
+# stack gets released again.
+[patch.crates-io]
+fea-rs = { path = "fea-rs-1.0.0-patched" }

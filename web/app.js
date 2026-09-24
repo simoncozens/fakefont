@@ -9,22 +9,18 @@
 
    The API it consumes:
 
-     new FakeFont(latinCoverage, greek, cyrillic)  // "full" | "core" | "kernel"
-     font.addDevanagari()                          // optional, merges in a second font
-     font.addStandardArabic()                      // the Arabic kernel subset
-     font.addUrduAndFarsi()                        // the whole Naskh Arabic font
-     font.addBengali()
-     font.addCJKBasic()
-     font.addThai()
-     font.addTamil()
-     font.addTelugu()
-     font.addKannada()
+     new FakeFont(latinCoverage, scripts)          // "full" | "core" | "kernel",
+                                                   // then the script tile values
      font.addWeightAxis(min, max)                  // only when that axis is enabled
      font.addWidthAxis(min, max)
      font.addArbitraryAxis(tag, name, low, high, default, metrics, kerning)
      font.fillOutMasters(kerning, advanceWidths)
      const bytes = font.compile()                  // Uint8Array
      const tables = tableStats(bytes)              // Map<string, number>
+
+   `scripts` is the list of checked `input[name="script"]` values, which the
+   wasm module accepts verbatim: greek, cyrillic, cjk-basic, devanagari,
+   bengali, standard-arabic, farsi-urdu, thai, tamil, telugu, kannada.
 */
 
 /**
@@ -163,24 +159,10 @@ function loadWasm() {
 async function compileFont(options) {
   const wasm = await loadWasm();
 
-  const scripts = new Set(options.scripts);
-  const font = new wasm.FakeFont(
-    options.latinCoverage,
-    scripts.has("greek"),
-    scripts.has("cyrillic"),
-  );
-  // These come from separate fonts, so they are merged in after construction.
-  // Greek and Cyrillic are different: they are sliced out of the Latin font,
-  // which is why they are constructor flags above.
-  if (scripts.has("devanagari")) font.addDevanagari();
-  if (scripts.has("bengali")) font.addBengali();
-  if (scripts.has("cjk-basic")) font.addCJKBasic();
-  if (scripts.has("thai")) font.addThai();
-  if (scripts.has("standard-arabic")) font.addStandardArabic();
-  if (scripts.has("farsi-urdu")) font.addUrduAndFarsi();
-  if (scripts.has("tamil")) font.addTamil();
-  if (scripts.has("telugu")) font.addTelugu();
-  if (scripts.has("kannada")) font.addKannada();
+  // Every subset is chosen at construction, and the tile values are the names
+  // the wasm module expects, so the checked boxes can be passed straight
+  // through.
+  const font = new wasm.FakeFont(options.latinCoverage, options.scripts);
   if (options.axes.wght)
     font.addWeightAxis(options.axes.wght.min, options.axes.wght.max);
   if (options.axes.wdth)

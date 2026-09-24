@@ -8,12 +8,8 @@
 //! import init, { FakeFont, tableStats } from "./pkg/fakefont_web.js";
 //! await init();
 //!
-//! const font = new FakeFont("core", /* greek */ false, /* cyrillic */ true);
-//! font.addDevanagari();
-//! font.addStandardArabic(); // or addUrduAndFarsi() for the whole Naskh font
-//! font.addBengali();
-//! font.addThai();
-//! // also: addTamil(), addTelugu(), addKannada(), addCjkBasic()
+//! // Latin coverage first, then the extra scripts, in any order.
+//! const font = new FakeFont("core", ["cyrillic", "devanagari", "thai"]);
 //! font.addWeightAxis(100, 700);
 //! font.addArbitraryAxis("slnt", "Slant", -15, 15, 0, true, true);
 //! font.fillOutMasters(/* adjust kerning */ true, /* adjust advance widths */ true);
@@ -25,8 +21,8 @@
 //! font.glyphCount(); // glyphs in the font
 //! ```
 
-use wasm_bindgen::prelude::*;
 use wasm_bindgen::JsError;
+use wasm_bindgen::prelude::*;
 
 use js_sys::Map;
 
@@ -40,10 +36,14 @@ pub struct FakeFont {
 /// `cargo test` can drive the whole pipeline on the host, where `JsError` and
 /// the rest of the wasm ABI are not usable.
 impl FakeFont {
-    fn build(latin_coverage: &str, greek: bool, cyrillic: bool) -> Result<Self, String> {
-        Ok(FakeFont {
-            inner: fakefont::FakeFont::new(parse_latin_coverage(latin_coverage)?, greek, cyrillic),
-        })
+    fn build(latin_coverage: &str, subsets: &[String]) -> Result<Self, String> {
+        let mut parsed = Vec::with_capacity(subsets.len());
+        for name in subsets {
+            parsed.push(parse_subset(name)?);
+        }
+        let inner = fakefont::FakeFont::new(parse_latin_coverage(latin_coverage)?, &parsed)
+            .map_err(|error| error.to_string())?;
+        Ok(FakeFont { inner })
     }
 
     fn compile_bytes(&self) -> Result<Vec<u8>, String> {
@@ -80,16 +80,20 @@ impl FakeFont {
 
 #[wasm_bindgen]
 impl FakeFont {
-    /// `latinCoverage` is `"full"`, `"core"` or `"kernel"`; `greek` and
-    /// `cyrillic` pull in those core glyphsets.
+    /// `latinCoverage` is `"full"`, `"core"` or `"kernel"`; `subsets` names the
+    /// extra scripts to include, in any order and with duplicates allowed.
     ///
-    /// Devanagari and the other subfonts are not flags here: they are merged in
-    /// afterwards with [`FakeFont::add_devanagari`] and friends, so that the
-    /// scripts sliced out of the Latin font can supply glyphs those fonts also
-    /// have without colliding.
+    /// The names are the values of the script tiles on the page: `"greek"`,
+    /// `"cyrillic"`, `"devanagari"`, `"standard-arabic"`, `"farsi-urdu"`,
+    /// `"cjk-basic"`, `"bengali"`, `"thai"`, `"tamil"`, `"telugu"` and
+    /// `"kannada"`. Anything else throws.
+    ///
+    /// Every subset is chosen here rather than one call per script, because the
+    /// font is cut out of the source data in a single pass and cannot gain
+    /// scripts afterwards.
     #[wasm_bindgen(constructor)]
-    pub fn new(latin_coverage: &str, greek: bool, cyrillic: bool) -> Result<FakeFont, JsError> {
-        Self::build(latin_coverage, greek, cyrillic).map_err(|error| JsError::new(&error))
+    pub fn new(latin_coverage: &str, subsets: Vec<String>) -> Result<FakeFont, JsError> {
+        Self::build(latin_coverage, &subsets).map_err(|error| JsError::new(&error))
     }
 
     /// Add a `wght` axis spanning `low`..`high` user units.
@@ -161,52 +165,6 @@ impl FakeFont {
     }
 }
 
-/// Generate one forwarding binding per subfont the library can merge in.
-///
-/// They are all the same three lines — take `&mut self`, call the library
-/// method of the same name — so the list below is the only place a script has
-/// to be named here. Adding a script to the page means one line in the
-/// invocation and one tile in `web/index.html`.
-///
-/// The binding's name is given separately because wasm-bindgen does not
-/// camel-case method names for us.
-macro_rules! subfont_bindings {
-    ($( $js_name:ident => $rust_name:ident : $doc:literal ; )*) => {
-        #[wasm_bindgen]
-        impl FakeFont {
-            $(
-                #[doc = $doc]
-                #[wasm_bindgen(js_name = $js_name)]
-                pub fn $rust_name(&mut self) {
-                    self.inner.$rust_name();
-                }
-            )*
-        }
-    };
-}
-
-subfont_bindings! {
-    addDevanagari => add_devanagari:
-        "Merge the Devanagari glyphs, kerning and feature code into the font.";
-    addStandardArabic => add_standard_arabic:
-        "Merge the standard Arabic kernel subset of Naskh Arabic.";
-    addUrduAndFarsi => add_urdu_and_farsi:
-        "Merge the whole Naskh Arabic font, Farsi and Urdu additions included. \
-         This is a superset of addStandardArabic, so asking for both is harmless: \
-         the second call only adds what is still missing.";
-    addBengali => add_bengali:
-        "Merge the Bengali glyphs, kerning and feature code into the font.";
-    addCJKBasic => add_cjk_basic: "Merge the basic CJK glyphs into the font.";
-    addThai => add_thai:
-        "Merge the Thai glyphs, kerning and feature code into the font.";
-    addTamil => add_tamil:
-        "Merge the Tamil glyphs, kerning and feature code into the font.";
-    addTelugu => add_telugu:
-        "Merge the Telugu glyphs, kerning and feature code into the font.";
-    addKannada => add_kannada:
-        "Merge the Kannada glyphs, kerning and feature code into the font.";
-}
-
 /// The byte length of every table in a compiled font, as a `Map<string, number>`.
 ///
 /// `HashMap` is not a wasm-bindgen type, so the library's map is copied into a
@@ -238,6 +196,35 @@ fn parse_latin_coverage(name: &str) -> Result<fakefont::LatinCoverage, String> {
             "unknown Latin coverage {other:?}: expected \"full\", \"core\" or \"kernel\""
         )),
     }
+}
+
+/// Map the value of a script tile on the page onto the library's enum.
+///
+/// These are the `value` attributes in `web/index.html`, passed through
+/// unchanged, so the two lists need to be kept in step.
+fn parse_subset(name: &str) -> Result<fakefont::OtherSubsets, String> {
+    use fakefont::OtherSubsets as Subset;
+
+    Ok(match name {
+        "greek" => Subset::Greek,
+        "cyrillic" => Subset::Cyrillic,
+        "cjk-basic" => Subset::CjkBasic,
+        "devanagari" => Subset::Devanagari,
+        "bengali" => Subset::Bengali,
+        "standard-arabic" => Subset::StandardArabic,
+        "farsi-urdu" => Subset::UrduFarsi,
+        "thai" => Subset::Thai,
+        "tamil" => Subset::Tamil,
+        "telugu" => Subset::Telugu,
+        "kannada" => Subset::Kannada,
+        other => {
+            return Err(format!(
+                "unknown script {other:?}: expected greek, cyrillic, cjk-basic, \
+                 devanagari, bengali, standard-arabic, farsi-urdu, thai, tamil, \
+                 telugu or kannada"
+            ));
+        }
+    })
 }
 
 /// Reject anything the library cannot turn into an axis.
@@ -273,6 +260,27 @@ fn check_axis(tag: &str, low: f64, high: f64, default: f64) -> Result<(), String
 mod tests {
     use super::*;
 
+    /// The script names carried by the tiles in `web/index.html`.
+    const SCRIPTS: [&str; 11] = [
+        "greek",
+        "cyrillic",
+        "devanagari",
+        "standard-arabic",
+        "farsi-urdu",
+        "cjk-basic",
+        "bengali",
+        "thai",
+        "tamil",
+        "telugu",
+        "kannada",
+    ];
+
+    /// `build` takes owned names, because that is what wasm-bindgen hands us
+    /// from a JavaScript array.
+    fn names(list: &[&str]) -> Vec<String> {
+        list.iter().map(|name| (*name).to_string()).collect()
+    }
+
     #[test]
     fn parses_coverage_names() {
         assert!(matches!(
@@ -291,15 +299,47 @@ mod tests {
         assert!(parse_latin_coverage("").is_err());
     }
 
+    /// The page passes its tile values straight through, so each one has to
+    /// reach the matching variant, and anything else has to be rejected.
+    #[test]
+    fn parses_subset_names() {
+        use fakefont::OtherSubsets as Subset;
+
+        assert!(matches!(parse_subset("greek"), Ok(Subset::Greek)));
+        assert!(matches!(parse_subset("cyrillic"), Ok(Subset::Cyrillic)));
+        assert!(matches!(parse_subset("cjk-basic"), Ok(Subset::CjkBasic)));
+        assert!(matches!(parse_subset("devanagari"), Ok(Subset::Devanagari)));
+        assert!(matches!(parse_subset("bengali"), Ok(Subset::Bengali)));
+        assert!(matches!(
+            parse_subset("standard-arabic"),
+            Ok(Subset::StandardArabic)
+        ));
+        assert!(matches!(parse_subset("farsi-urdu"), Ok(Subset::UrduFarsi)));
+        assert!(matches!(parse_subset("thai"), Ok(Subset::Thai)));
+        assert!(matches!(parse_subset("tamil"), Ok(Subset::Tamil)));
+        assert!(matches!(parse_subset("telugu"), Ok(Subset::Telugu)));
+        assert!(matches!(parse_subset("kannada"), Ok(Subset::Kannada)));
+
+        // The names are the page's lowercase tile values, and nothing else.
+        for wrong in ["", "Greek", "farsi", "cjkbasic", "arabic", "devanagari "] {
+            assert!(parse_subset(wrong).is_err(), "{wrong:?} should not parse");
+        }
+    }
+
     /// Drives the same call sequence the web app uses, on the host.
     #[test]
     fn builds_compiles_and_measures() {
-        let mut font = FakeFont::build("kernel", true, false).expect("build");
-        font.add_devanagari();
-        font.add_standard_arabic();
-        font.add_urdu_and_farsi();
-        font.add_bengali();
-        font.add_thai();
+        let mut font = FakeFont::build(
+            "kernel",
+            &names(&[
+                "devanagari",
+                "standard-arabic",
+                "farsi-urdu",
+                "bengali",
+                "thai",
+            ]),
+        )
+        .expect("build");
         font.add_weight_axis(100.0, 700.0);
         font.add_width_axis(75.0, 125.0);
         font.fill_out_masters(true, true);
@@ -316,25 +356,13 @@ mod tests {
     /// rename that quietly dropped one shows up here.
     #[test]
     fn every_script_adds_glyphs() {
-        let empty = FakeFont::build("kernel", false, false).expect("build");
-        let baseline = empty.glyph_count();
+        let baseline = FakeFont::build("kernel", &[])
+            .expect("build")
+            .glyph_count();
+        assert!(baseline > 0);
 
-        #[allow(clippy::type_complexity)]
-        let scripts: [(&str, fn(&mut FakeFont)); 9] = [
-            ("devanagari", FakeFont::add_devanagari),
-            ("standard arabic", FakeFont::add_standard_arabic),
-            ("farsi and urdu", FakeFont::add_urdu_and_farsi),
-            ("bengali", FakeFont::add_bengali),
-            ("cjk basic", FakeFont::add_cjk_basic),
-            ("thai", FakeFont::add_thai),
-            ("tamil", FakeFont::add_tamil),
-            ("telugu", FakeFont::add_telugu),
-            ("kannada", FakeFont::add_kannada),
-        ];
-
-        for (name, add) in scripts {
-            let mut font = FakeFont::build("kernel", false, false).expect("build");
-            add(&mut font);
+        for name in SCRIPTS {
+            let font = FakeFont::build("kernel", &names(&[name])).expect("build");
             assert!(
                 font.glyph_count() > baseline,
                 "{name} added no glyphs to {baseline}"
@@ -344,7 +372,7 @@ mod tests {
 
     #[test]
     fn a_static_font_has_no_variation_tables() {
-        let mut font = FakeFont::build("kernel", false, false).expect("build");
+        let mut font = FakeFont::build("kernel", &[]).expect("build");
         font.fill_out_masters(false, false);
         let bytes = font.compile_bytes().expect("compile");
         let tables = fakefont::table_stats(&bytes).expect("table stats");
@@ -386,7 +414,7 @@ mod tests {
             ("opsz", "Optical size", 6.0, 144.0, 12.0),
             ("GRAD", "Grade", -200.0, 150.0, 88.0),
         ] {
-            let mut font = FakeFont::build("kernel", false, false).expect("build");
+            let mut font = FakeFont::build("kernel", &[]).expect("build");
             font.add_axis(tag, name, low, high, default, true, true)
                 .expect("add axis");
             font.fill_out_masters(true, true);
@@ -403,17 +431,18 @@ mod tests {
     /// The counts the page shows above the file size.
     #[test]
     fn reports_masters_and_glyphs() {
-        let mut font = FakeFont::build("kernel", false, false).expect("build");
+        let font = FakeFont::build("kernel", &[]).expect("build");
         assert_eq!(font.master_count(), 1, "one master before filling out");
         let latin_glyphs = font.glyph_count();
         assert!(latin_glyphs > 0);
 
-        font.add_devanagari();
+        let with_devanagari = FakeFont::build("kernel", &names(&["devanagari"])).expect("build");
         assert!(
-            font.glyph_count() > latin_glyphs,
-            "merging a script should add glyphs"
+            with_devanagari.glyph_count() > latin_glyphs,
+            "adding a script should add glyphs"
         );
 
+        let mut font = FakeFont::build("kernel", &[]).expect("build");
         font.add_axis("slnt", "Slant", -15.0, 15.0, 0.0, true, true)
             .expect("add axis");
         font.fill_out_masters(false, false);
@@ -425,16 +454,8 @@ mod tests {
     /// compiled to "Glyph hyphen.<script> not found".
     #[test]
     fn scripts_with_variants_compile() {
-        #[allow(clippy::type_complexity)]
-        let scripts: [(&str, fn(&mut FakeFont)); 3] = [
-            ("tamil", FakeFont::add_tamil),
-            ("telugu", FakeFont::add_telugu),
-            ("kannada", FakeFont::add_kannada),
-        ];
-
-        for (name, add) in scripts {
-            let mut font = FakeFont::build("kernel", false, false).expect("build");
-            add(&mut font);
+        for name in ["tamil", "telugu", "kannada"] {
+            let mut font = FakeFont::build("kernel", &names(&[name])).expect("build");
             font.fill_out_masters(false, false);
             let bytes = font
                 .compile_bytes()
@@ -445,12 +466,12 @@ mod tests {
 
     #[test]
     fn arbitrary_axes_add_masters() {
-        let mut one = FakeFont::build("kernel", false, false).expect("build");
+        let mut one = FakeFont::build("kernel", &[]).expect("build");
         one.add_axis("slnt", "Slant", -15.0, 15.0, 0.0, true, true)
             .expect("add axis");
         one.fill_out_masters(false, false);
 
-        let mut two = FakeFont::build("kernel", false, false).expect("build");
+        let mut two = FakeFont::build("kernel", &[]).expect("build");
         two.add_axis("slnt", "Slant", -15.0, 15.0, 0.0, true, true)
             .expect("add axis");
         two.add_axis("opsz", "Optical size", 6.0, 144.0, 12.0, true, true)
