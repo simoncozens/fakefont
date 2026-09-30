@@ -241,143 +241,9 @@
           <section class="pane h-100" aria-labelledby="designspace-heading">
             <h2 class="pane-heading" id="designspace-heading">Designspace</h2>
 
-            <div class="axis" data-axis="wght">
-              <div class="axis-head">
-                <span class="axis-name" id="axis-wght-label">Weight</span>
-                <code class="axis-tag">wght</code>
-              </div>
-              <div
-                class="tiles tiles-4"
-                role="radiogroup"
-                aria-labelledby="axis-wght-label"
-              >
-                <input
-                  class="tile-input"
-                  type="radio"
-                  name="axis-wght"
-                  id="wght-none"
-                  value="none"
-                  checked
-                />
-                <label class="tile tile-compact" for="wght-none">
-                  <span class="tile-value">None</span>
-                  <span class="tile-sub">static</span>
-                </label>
-
-                <input
-                  class="tile-input"
-                  type="radio"
-                  name="axis-wght"
-                  id="wght-below"
-                  value="below"
-                  data-min="100"
-                  data-max="400"
-                />
-                <label class="tile tile-compact" for="wght-below">
-                  <span class="tile-value">100&ndash;400</span>
-                  <span class="tile-sub">below default</span>
-                </label>
-
-                <input
-                  class="tile-input"
-                  type="radio"
-                  name="axis-wght"
-                  id="wght-above"
-                  value="above"
-                  data-min="400"
-                  data-max="700"
-                />
-                <label class="tile tile-compact" for="wght-above">
-                  <span class="tile-value">400&ndash;700</span>
-                  <span class="tile-sub">above default</span>
-                </label>
-
-                <input
-                  class="tile-input"
-                  type="radio"
-                  name="axis-wght"
-                  id="wght-full"
-                  value="full"
-                  data-min="100"
-                  data-max="700"
-                />
-                <label class="tile tile-compact" for="wght-full">
-                  <span class="tile-value">100&ndash;700</span>
-                  <span class="tile-sub">full range</span>
-                </label>
-              </div>
-            </div>
-
-            <div class="axis" data-axis="wdth">
-              <div class="axis-head">
-                <span class="axis-name" id="axis-wdth-label">Width</span>
-                <code class="axis-tag">wdth</code>
-              </div>
-              <div
-                class="tiles tiles-4"
-                role="radiogroup"
-                aria-labelledby="axis-wdth-label"
-              >
-                <input
-                  class="tile-input"
-                  type="radio"
-                  name="axis-wdth"
-                  id="wdth-none"
-                  value="none"
-                  checked
-                />
-                <label class="tile tile-compact" for="wdth-none">
-                  <span class="tile-value">None</span>
-                  <span class="tile-sub">static</span>
-                </label>
-
-                <input
-                  class="tile-input"
-                  type="radio"
-                  name="axis-wdth"
-                  id="wdth-below"
-                  value="below"
-                  data-min="75"
-                  data-max="100"
-                />
-                <label class="tile tile-compact" for="wdth-below">
-                  <span class="tile-value">75&ndash;100</span>
-                  <span class="tile-sub">below default</span>
-                </label>
-
-                <input
-                  class="tile-input"
-                  type="radio"
-                  name="axis-wdth"
-                  id="wdth-above"
-                  value="above"
-                  data-min="100"
-                  data-max="125"
-                />
-                <label class="tile tile-compact" for="wdth-above">
-                  <span class="tile-value">100&ndash;125</span>
-                  <span class="tile-sub">above default</span>
-                </label>
-
-                <input
-                  class="tile-input"
-                  type="radio"
-                  name="axis-wdth"
-                  id="wdth-full"
-                  value="full"
-                  data-min="75"
-                  data-max="125"
-                />
-                <label class="tile tile-compact" for="wdth-full">
-                  <span class="tile-value">75&ndash;125</span>
-                  <span class="tile-sub">full range</span>
-                </label>
-              </div>
-            </div>
-
             <div class="option-group">
               <div class="group-head">
-                <p class="group-label">Custom axes</p>
+                <p class="group-label">Axes</p>
                 <button type="button" class="btn-add-axis" id="add-axis-button">
                   <span aria-hidden="true">+</span> Add axis
                 </button>
@@ -386,7 +252,7 @@
               <div class="axes-wrap" id="axes-wrap" hidden>
                 <table class="axes-table" id="axes-table">
                   <caption class="visually-hidden">
-                    Custom designspace axes
+                    Designspace axes
                   </caption>
                   <thead>
                     <tr>
@@ -411,8 +277,8 @@
               </div>
 
               <p class="group-hint" id="axes-hint">
-                No custom axes yet. <strong>Add axis</strong> builds one with
-                its own tag, name and range.
+                No axes yet. <strong>Add axis</strong> builds one with its own
+                tag, name and range.
               </p>
               <p class="axes-error" id="axes-error" role="alert" hidden></p>
 

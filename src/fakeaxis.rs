@@ -1,6 +1,8 @@
+use babelfont::{
+    Axis, DesignCoord, DesignLocation, LayerType::DefaultForMaster, SmolStr, Tag, UserCoord,
+};
 use indexmap::IndexMap;
 use rand::RngExt as _;
-use babelfont::{Axis, DesignCoord, DesignLocation, LayerType::DefaultForMaster, SmolStr, Tag};
 
 use crate::FakeFont;
 
@@ -106,8 +108,6 @@ impl FakeFont {
     pub fn glyph_count(&self) -> usize {
         self.0.glyphs.len()
     }
-
-
 }
 
 fn adjust_kerning(
@@ -213,4 +213,31 @@ fn transform_y_coord(y: impl Into<f64>, loc: &DesignLocation, midpoint: impl Int
     }
     y += rng.random_range(-2.0..5.0);
     y
+}
+
+pub(crate) fn weight_warping_map(
+    low: f64,
+    default: f64,
+    high: f64,
+) -> Vec<(UserCoord, DesignCoord)> {
+    let mut map = vec![];
+    // Add in low->low, high->high, default->default plus some arbitrary warping
+    map.push((UserCoord::new(low), DesignCoord::new(low)));
+    map.push((UserCoord::new(high), DesignCoord::new(high)));
+    map.push((UserCoord::new(default), DesignCoord::new(default)));
+    if low < default {
+        map.push((
+            UserCoord::new((low + default) / 2.0),
+            DesignCoord::new((low + default) / 2.0 + 50.0),
+        ));
+    }
+    if high > default {
+        map.push((
+            UserCoord::new((high + default) / 2.0),
+            DesignCoord::new((high + default) / 2.0 - 50.0),
+        ));
+    }
+    map.sort();
+    map.dedup();
+    map
 }

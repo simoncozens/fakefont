@@ -10,8 +10,8 @@
 //!
 //! // Latin coverage first, then the extra scripts, in any order.
 //! const font = new FakeFont("core", ["cyrillic", "devanagari", "thai"]);
-//! font.addWeightAxis(100, 700);
-//! font.addArbitraryAxis("slnt", "Slant", -15, 15, 0, true, true);
+//! font.addAxis("wght", "Weight", 100, 700, 400, true, true);
+//! font.addAxis("slnt", "Slant", -15, 15, 0, true, true);
 //! font.fillOutMasters(/* adjust kerning */ true, /* adjust advance widths */ true);
 //!
 //! // Read these first: compile() consumes the font.
@@ -22,8 +22,8 @@
 //! const tables = tableStats(bytes); // Map<string, number>
 //! ```
 
-use wasm_bindgen::prelude::*;
 use wasm_bindgen::JsError;
+use wasm_bindgen::prelude::*;
 
 use js_sys::Map;
 
@@ -51,11 +51,11 @@ impl FakeFont {
         self.inner.compile().map_err(|error| error.to_string())
     }
 
-    /// Rejects the axes `check_axis` refuses to let through.
-    // The argument list mirrors `fakefont::FakeFont::add_arbitrary_axis`, which
-    // is the point of this crate.
+    /// Validates an axis and hands it to the library.
+    // The argument list mirrors `fakefont::FakeFont::add_axis`, which is the
+    // point of this crate.
     #[allow(clippy::too_many_arguments)]
-    fn add_axis(
+    fn add_axis_checked(
         &mut self,
         tag: &str,
         name: &str,
@@ -66,7 +66,7 @@ impl FakeFont {
         affects_kerning: bool,
     ) -> Result<(), String> {
         check_axis(tag, low, high, default)?;
-        self.inner.add_arbitrary_axis(
+        self.inner.add_axis(
             tag,
             name,
             low,
@@ -97,30 +97,19 @@ impl FakeFont {
         Self::build(latin_coverage, &subsets).map_err(|error| JsError::new(&error))
     }
 
-    /// Add a `wght` axis spanning `low`..`high` user units.
-    #[wasm_bindgen(js_name = addWeightAxis)]
-    pub fn add_weight_axis(&mut self, low: f64, high: f64) {
-        self.inner.add_weight_axis(low, high);
-    }
-
-    /// Add a `wdth` axis spanning `low`..`high` user units.
-    #[wasm_bindgen(js_name = addWidthAxis)]
-    pub fn add_width_axis(&mut self, low: f64, high: f64) {
-        self.inner.add_width_axis(low, high);
-    }
-
-    /// Add an axis with an arbitrary four-byte tag.
+    /// Add an axis, whose `tag` is four printable ASCII bytes.
     ///
     /// Note the argument order: `low`, `high`, then `default`, matching the
     /// library. `affectsMetrics` and `affectsKerning` say whether the axis
     /// varies advance widths and kerning; false freezes them across that axis.
+    /// A `wght` axis also gets the library's weight warping map.
     ///
     /// Invalid input is rejected here rather than in the library, which pads
     /// the tag and unwraps it — a panic would abort the whole wasm module.
     // One argument per part of an axis, in the library's order.
     #[allow(clippy::too_many_arguments)]
-    #[wasm_bindgen(js_name = addArbitraryAxis)]
-    pub fn add_arbitrary_axis(
+    #[wasm_bindgen(js_name = addAxis)]
+    pub fn add_axis(
         &mut self,
         tag: &str,
         name: &str,
@@ -130,7 +119,7 @@ impl FakeFont {
         affects_metrics: bool,
         affects_kerning: bool,
     ) -> Result<(), JsError> {
-        self.add_axis(
+        self.add_axis_checked(
             tag,
             name,
             low,
@@ -348,8 +337,10 @@ mod tests {
             ]),
         )
         .expect("build");
-        font.add_weight_axis(100.0, 700.0);
-        font.add_width_axis(75.0, 125.0);
+        font.add_axis_checked("wght", "Weight", 100.0, 700.0, 400.0, true, true)
+            .unwrap();
+        font.add_axis_checked("wdth", "Width", 75.0, 125.0, 100.0, true, true)
+            .unwrap();
         font.fill_out_masters(true, true);
         let bytes = font.compile_bytes().expect("compile");
 
@@ -421,7 +412,7 @@ mod tests {
             ("GRAD", "Grade", -200.0, 150.0, 88.0),
         ] {
             let mut font = FakeFont::build("kernel", &[]).expect("build");
-            font.add_axis(tag, name, low, high, default, true, true)
+            font.add_axis_checked(tag, name, low, high, default, true, true)
                 .expect("add axis");
             font.fill_out_masters(true, true);
             let bytes = font
@@ -449,7 +440,7 @@ mod tests {
         );
 
         let mut font = FakeFont::build("kernel", &[]).expect("build");
-        font.add_axis("slnt", "Slant", -15.0, 15.0, 0.0, true, true)
+        font.add_axis_checked("slnt", "Slant", -15.0, 15.0, 0.0, true, true)
             .expect("add axis");
         font.fill_out_masters(false, false);
         assert_eq!(font.master_count(), 3, "low, default and high corners");
@@ -473,14 +464,14 @@ mod tests {
     #[test]
     fn arbitrary_axes_add_masters() {
         let mut one = FakeFont::build("kernel", &[]).expect("build");
-        one.add_axis("slnt", "Slant", -15.0, 15.0, 0.0, true, true)
+        one.add_axis_checked("slnt", "Slant", -15.0, 15.0, 0.0, true, true)
             .expect("add axis");
         one.fill_out_masters(false, false);
 
         let mut two = FakeFont::build("kernel", &[]).expect("build");
-        two.add_axis("slnt", "Slant", -15.0, 15.0, 0.0, true, true)
+        two.add_axis_checked("slnt", "Slant", -15.0, 15.0, 0.0, true, true)
             .expect("add axis");
-        two.add_axis("opsz", "Optical size", 6.0, 144.0, 12.0, true, true)
+        two.add_axis_checked("opsz", "Optical size", 6.0, 144.0, 12.0, true, true)
             .expect("add axis");
         two.fill_out_masters(false, false);
 

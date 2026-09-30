@@ -18,9 +18,8 @@ await init(); // instantiate the module (installs a panic hook)
 // Latin coverage, then the extra scripts, in any order.
 const font = new FakeFont("core", ["cyrillic", "devanagari", "thai"]);
 
-font.addWeightAxis(100, 700); // omit for no wght axis
-font.addWidthAxis(75, 125); // omit for no wdth axis
-font.addArbitraryAxis("slnt", "Slant", -15, 15, 0, true, true); // tag, name, low, high, default, …
+font.addAxis("wght", "Weight", 100, 700, 400, true, true); // tag, name, low, high, default, …
+font.addAxis("slnt", "Slant", -15, 15, 0, true, true); // omit an axis for a static font
 font.fillOutMasters(/* adjust kerning */ true, /* adjust advance widths */ true);
 
 const bytes = font.compile(); // Uint8Array
@@ -30,9 +29,7 @@ const tables = tableStats(bytes); // Map<string, number>
 | Rust                       | JavaScript                             |
 | -------------------------- | -------------------------------------- |
 | `FakeFont::new(coverage, &subsets)` | `new FakeFont(coverage, subsets)` |
-| `add_weight_axis(low, high)` | `addWeightAxis(low, high)`           |
-| `add_width_axis(low, high)` | `addWidthAxis(low, high)`             |
-| `add_arbitrary_axis(tag, name, low, high, default, metrics, kerning)` | `addArbitraryAxis(…)` |
+| `add_axis(tag, name, low, high, default, metrics, kerning)` | `addAxis(…)` |
 | `fill_out_masters(k, aw)`  | `fillOutMasters(k, aw)`                |
 | `master_count()`           | `masterCount()`                        |
 | `glyph_count()`            | `glyphCount()`                         |
@@ -51,11 +48,12 @@ farsi-urdu  thai  tamil  telugu  kannada
 These are the `value` attributes of the script tiles in `web/index.html`, so the
 page passes its checked boxes straight through. An unknown name throws.
 
-`addArbitraryAxis` validates before calling the library, which would otherwise
+`addAxis` validates before calling the library, which would otherwise
 panic (and take the wasm module down with it) on a tag that isn't exactly four
 printable ASCII bytes. It also rejects non-finite coordinates, `low >= high`,
 and a `default` outside `low..high`. Note the library's argument order:
-`low`, `high`, `default`.
+`low`, `high`, `default`. A `wght` axis is warped the way the library warps a
+weight axis, so it compiles an `avar` table rather than a linear mapping.
 
 ## Building
 

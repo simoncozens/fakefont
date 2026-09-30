@@ -11,9 +11,7 @@
 
      new FakeFont(latinCoverage, scripts)          // "full" | "core" | "kernel",
                                                    // then the script tile values
-     font.addWeightAxis(min, max)                  // only when that axis is enabled
-     font.addWidthAxis(min, max)
-     font.addArbitraryAxis(tag, name, low, high, default, metrics, kerning)
+     font.addAxis(tag, name, low, high, default, metrics, kerning)
      font.fillOutMasters(kerning, advanceWidths)
      const bytes = font.compile()                  // Uint8Array
      const tables = tableStats(bytes)              // Map<string, number>
@@ -38,22 +36,59 @@
  * @typedef {object} Options
  * @property {"full"|"core"|"kernel"} latinCoverage
  * @property {string[]} scripts
- * @property {Record<string, {min: number, max: number, preset: string} | null>} axes
- * @property {CustomAxis[]} customAxes
+ * @property {CustomAxis[]} axes
  * @property {boolean} kerning
  * @property {boolean} advanceWidths
  */
 
-/** Axes offered in the designspace pane. Order is the order they are applied. */
-const AXES = [
-  { tag: "wght", name: "Weight" },
-  { tag: "wdth", name: "Width" },
+/**
+ * The designspace the page starts with, used the first time it is opened (or
+ * after the saved settings are cleared). Order is the order axes are applied.
+ */
+const DEFAULT_AXES = [
+  {
+    tag: "wght",
+    name: "Weight",
+    low: 300,
+    default: 400,
+    high: 800,
+    affectsMetrics: true,
+    affectsKerning: true,
+  },
+  {
+    tag: "wdth",
+    name: "Width",
+    low: 25,
+    default: 100,
+    high: 125,
+    affectsMetrics: true,
+    affectsKerning: true,
+  },
+  // { tag: "slnt", name: "Slant", low: -10, default: 0, high: 10 },
+  {
+    tag: "opsz",
+    name: "Optical Size",
+    low: 8,
+    default: 24,
+    high: 144,
+    affectsMetrics: true,
+    affectsKerning: true,
+  },
+  {
+    tag: "ROND",
+    name: "Rounded",
+    low: 0,
+    default: 0,
+    high: 100,
+    affectsMetrics: false,
+    affectsKerning: false,
+  },
 ];
 
 /** An axis tag is four printable ASCII bytes. */
 const AXIS_TAG_PATTERN = /^[\x20-\x7e]{4}$/;
 
-/** Values a newly added custom axis starts with. */
+/** Values a newly added axis starts with. */
 const NEW_AXIS = { low: 0, default: 0, high: 100 };
 
 /**
@@ -88,30 +123,13 @@ const els = {
 let downloadUrl = null;
 /** True while a compile is running, so validation can't re-enable the button. */
 let busy = false;
-/** False when a custom axis is not usable as-is. */
+/** False when an axis row is not usable as-is. */
 let axesValid = true;
 
 // -------------------------------------------------------------- state model
 
-/** The weight and width presets, as chosen with the tiles. */
-function readPresetAxes() {
-  const axes = {};
-  for (const { tag } of AXES) {
-    const checked = document.querySelector(`input[name="axis-${tag}"]:checked`);
-    axes[tag] =
-      checked && checked.value !== "none"
-        ? {
-            min: Number(checked.dataset.min),
-            max: Number(checked.dataset.max),
-            preset: checked.value,
-          }
-        : null;
-  }
-  return axes;
-}
-
-/** The raw contents of the custom axis table. */
-function readCustomAxes() {
+/** The raw contents of the axis table. */
+function readAxes() {
   return axisRows().map((row) => {
     const text = (selector) => row.querySelector(selector).value.trim();
     const number = (selector) => row.querySelector(selector).valueAsNumber;
@@ -139,8 +157,7 @@ export function collectOptions() {
     scripts: Array.from(
       document.querySelectorAll('input[name="script"]:checked'),
     ).map((input) => input.value),
-    axes: readPresetAxes(),
-    customAxes: readCustomAxes(),
+    axes: readAxes(),
     kerning: document.getElementById("adjust-kerning").checked,
     advanceWidths: document.getElementById("adjust-advance-widths").checked,
   };
@@ -171,13 +188,12 @@ async function compileFont(options) {
   // the names the wasm module expects, so the checked boxes can be passed
   // straight through.
   const font = new wasm.FakeFont(options.latinCoverage, options.scripts);
-  if (options.axes.wght)
-    font.addWeightAxis(options.axes.wght.min, options.axes.wght.max);
-  if (options.axes.wdth)
-    font.addWidthAxis(options.axes.wdth.min, options.axes.wdth.max);
-  // The library takes low, high, default — note the order.
-  for (const axis of options.customAxes) {
-    font.addArbitraryAxis(
+
+  // One designspace axis per row, so the tag, range, default and the
+  // metrics/kerning flags are all honoured. The library takes low, high,
+  // default — note the order — and warps a `wght` row for us.
+  for (const axis of options.axes) {
+    font.addAxis(
       axis.tag,
       axis.name || axis.tag,
       axis.low,
@@ -206,9 +222,9 @@ async function compileFont(options) {
   };
 }
 
-// ------------------------------------------------------------- custom axes
+// ------------------------------------------------------------------- axes
 
-/** The `<tr>`s currently in the custom axis table. */
+/** The `<tr>`s currently in the axis table. */
 function axisRows() {
   return Array.from(els.axesBody.querySelectorAll("tr"));
 }
@@ -246,22 +262,18 @@ function removeAxisRow(row) {
 }
 
 /**
- * Check every custom axis: tags the library would reject, duplicate tags, and
- * ranges that don't make sense.
+ * Check every axis: tags the library would reject, duplicate tags, and ranges
+ * that don't make sense.
  *
  * @returns {{rows: CustomAxis[], problems: {tag: string|null, range: string|null}[], messages: string[], valid: boolean}}
  */
 function validateAxes() {
-  const rows = readCustomAxes();
+  const rows = readAxes();
   const problems = rows.map(() => ({ tag: null, range: null }));
   const messages = [];
 
-  // Tags the preset axes are already using, so a custom axis can't collide.
+  // Tags taken by earlier rows, so two axes can't claim the same one.
   const claimed = new Map();
-  const presets = readPresetAxes();
-  for (const { tag, name } of AXES) {
-    if (presets[tag]) claimed.set(tag, `${name.toLowerCase()} axis`);
-  }
 
   rows.forEach((row, index) => {
     const at = (text) => `Row ${index + 1}: ${text}`;
@@ -271,7 +283,7 @@ function validateAxes() {
         "the tag must be exactly four printable ASCII characters";
     } else if (claimed.has(row.tag)) {
       problems[index].tag =
-        `the tag "${row.tag}" is already used by the ${claimed.get(row.tag)}`;
+        `the tag "${row.tag}" is already used by ${claimed.get(row.tag)}`;
     } else {
       claimed.set(row.tag, `row ${index + 1}`);
     }
@@ -332,12 +344,10 @@ function markInvalid(input, message) {
   }
 }
 
-/** Disabled while compiling, and while the custom axes need fixing. */
+/** Disabled while compiling, and while the axis table needs fixing. */
 function refreshCompileButton() {
   els.compileButton.disabled = busy || !axesValid;
-  els.compileButton.title = axesValid
-    ? ""
-    : "Fix the custom axes before compiling";
+  els.compileButton.title = axesValid ? "" : "Fix the axes before compiling";
 }
 
 // ------------------------------------------------------------------ compile
@@ -348,7 +358,7 @@ async function run() {
   const { valid, messages } = validateAxes();
   if (!valid) {
     els.body.hidden = true;
-    showNotice(`Custom axes need fixing — ${messages.join(" ")}`, true);
+    showNotice(`Axes need fixing — ${messages.join(" ")}`, true);
     reveal();
     return;
   }
@@ -575,7 +585,7 @@ function humanBytes(bytes) {
  * Where the choices live between visits. The version suffix means a future
  * change to the shape can start from scratch instead of misreading old data.
  */
-const STORAGE_KEY = "how-big-is-a-font.settings.v1";
+const STORAGE_KEY = "how-big-is-a-font.settings.v2";
 
 /** @returns {object|null} */
 function readStoredSettings() {
@@ -634,6 +644,36 @@ function storedNumber(value, fallback) {
 }
 
 /**
+ * One axis, from a stored record or from `DEFAULT_AXES`, as the values
+ * `addAxisRow` expects.
+ * @param {Partial<CustomAxis>} axis
+ */
+function axisRowValues(axis) {
+  return {
+    tag: axis.tag,
+    name: axis.name,
+    low: storedNumber(axis.low, NEW_AXIS.low),
+    default: storedNumber(axis.default, NEW_AXIS.default),
+    high: storedNumber(axis.high, NEW_AXIS.high),
+    affectsMetrics: axis.affectsMetrics,
+    affectsKerning: axis.affectsKerning,
+  };
+}
+
+/**
+ * Replace the table with `axes`. Rows are added without focusing them, so
+ * restoring a long designspace does not scroll the page down to the last row.
+ * @param {Partial<CustomAxis>[]} axes
+ */
+function setAxes(axes) {
+  els.axesBody.replaceChildren();
+  for (const axis of axes) {
+    if (!axis || typeof axis !== "object") continue;
+    addAxisRow(axisRowValues(axis), false);
+  }
+}
+
+/**
  * Put back the choices from the last visit. Anything missing, unrecognised or
  * malformed is skipped, so a stale record can never leave the page stuck.
  * @param {any} stored
@@ -646,29 +686,6 @@ function applySettings(stored) {
   if (Array.isArray(stored.scripts)) {
     for (const box of document.querySelectorAll('input[name="script"]')) {
       box.checked = stored.scripts.includes(box.value);
-    }
-  }
-
-  for (const { tag } of AXES) {
-    selectRadio(`axis-${tag}`, stored.axes?.[tag]?.preset ?? "none");
-  }
-
-  if (Array.isArray(stored.customAxes)) {
-    els.axesBody.replaceChildren();
-    for (const axis of stored.customAxes) {
-      if (!axis || typeof axis !== "object") continue;
-      addAxisRow(
-        {
-          tag: axis.tag,
-          name: axis.name,
-          low: storedNumber(axis.low, NEW_AXIS.low),
-          default: storedNumber(axis.default, NEW_AXIS.default),
-          high: storedNumber(axis.high, NEW_AXIS.high),
-          affectsMetrics: axis.affectsMetrics,
-          affectsKerning: axis.affectsKerning,
-        },
-        false,
-      );
     }
   }
 
@@ -697,16 +714,8 @@ els.axesBody.addEventListener("click", (event) => {
   if (button) removeAxisRow(button.closest("tr"));
 });
 
-// Switching a preset axis on claims its tag, which can invalidate a custom axis.
-document.addEventListener("change", (event) => {
-  if (
-    event.target instanceof HTMLInputElement &&
-    event.target.name?.startsWith("axis-")
-  ) {
-    refreshAxes();
-  }
-  saveSettingsSoon();
-});
+// Switching a script, coverage or interpolation choice is worth remembering.
+document.addEventListener("change", () => saveSettingsSoon());
 
 // Keep the download button from doing anything when it is inert.
 els.download.addEventListener("click", (event) => {
@@ -715,7 +724,13 @@ els.download.addEventListener("click", (event) => {
 
 setDownload(null);
 els.notice.hidden = true;
-applySettings(readStoredSettings());
+
+// The saved axes on a return visit, and `DEFAULT_AXES` on the first one (or
+// after a version bump). An empty saved list stays empty — the defaults are a
+// starting point, not something the page puts back.
+const stored = readStoredSettings();
+applySettings(stored);
+setAxes(Array.isArray(stored?.axes) ? stored.axes : DEFAULT_AXES);
 refreshAxes();
 
 // Handy when poking at this from the devtools console.

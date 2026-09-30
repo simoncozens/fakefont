@@ -4,7 +4,7 @@
 #![deny(missing_docs)]
 use babelfont::{BabelfontError, DesignCoord, Font, FormatSpecific, Tag, UserCoord};
 use flate2::read::GzDecoder;
-use fontmerge::{fontsubset, GlyphsetFilter};
+use fontmerge::{GlyphsetFilter, fontsubset};
 use google_fonts_glyphsets::{
     GF_ARABIC_CORE, GF_ARABIC_KERNEL, GF_CYRILLIC_CORE, GF_GREEK_CORE, GF_LATIN_AFRICAN,
     GF_LATIN_CORE, GF_LATIN_KERNEL, GF_LATIN_PLUS, GF_LATIN_VIETNAMESE,
@@ -153,54 +153,9 @@ impl FakeFont {
         )?))
     }
 
-    /// Adds a weight axis to the fake font with the specified low and high values.
-    pub fn add_weight_axis(&mut self, low: f64, high: f64) {
-        let mut map = vec![];
-        let default = UserCoord::new(400.0);
-        // Add in low->low, high->high, default->default plus some arbitrary warping
-        map.push((UserCoord::new(low), DesignCoord::new(low)));
-        map.push((UserCoord::new(high), DesignCoord::new(high)));
-        map.push((default, DesignCoord::new(400.0)));
-        if low < 400.0 {
-            map.push((
-                UserCoord::new((low + 400.0) / 2.0),
-                DesignCoord::new((low + 400.0) / 2.0 + 50.0),
-            ));
-        }
-        if high > 400.0 {
-            map.push((
-                UserCoord::new((high + 400.0) / 2.0),
-                DesignCoord::new((high + 400.0) / 2.0 - 50.0),
-            ));
-        }
-        map.sort();
-        map.dedup();
-        self.0.axes.push(babelfont::Axis {
-            name: "Weight".into(),
-            tag: Tag::new(b"wght"),
-            min: Some(UserCoord::new(low)),
-            max: Some(UserCoord::new(high)),
-            default: Some(UserCoord::new(400.0)),
-            map: Some(map),
-            ..Default::default()
-        })
-    }
-
-    /// Adds a width axis to the fake font with the specified low and high values.  
-    pub fn add_width_axis(&mut self, low: f64, high: f64) {
-        self.0.axes.push(babelfont::Axis {
-            name: "Width".into(),
-            tag: Tag::new(b"wdth"),
-            min: Some(UserCoord::new(low)),
-            max: Some(UserCoord::new(high)),
-            default: Some(UserCoord::new(100.0)),
-            ..Default::default()
-        })
-    }
-
-    /// Adds an arbitrary axis to the fake font with the specified tag, name, low, high, default values, and flags indicating whether it affects metrics and kerning.
+    /// Adds an axis to the fake font with the specified tag, name, low, high, default values, and flags indicating whether it affects metrics and kerning.
     #[allow(clippy::too_many_arguments)]
-    pub fn add_arbitrary_axis(
+    pub fn add_axis(
         &mut self,
         tag: &str,
         name: &str,
@@ -220,11 +175,15 @@ impl FakeFont {
             "affects_kerning".to_string(),
             serde_json::Value::Bool(affects_kerning),
         );
-        let mut map = vec![
-            (UserCoord::new(low), DesignCoord::new(low)),
-            (UserCoord::new(default), DesignCoord::new(default)),
-            (UserCoord::new(high), DesignCoord::new(high)),
-        ];
+        let mut map = if tag == "wght" {
+            fakeaxis::weight_warping_map(low, default, high)
+        } else {
+            vec![
+                (UserCoord::new(low), DesignCoord::new(low)),
+                (UserCoord::new(default), DesignCoord::new(default)),
+                (UserCoord::new(high), DesignCoord::new(high)),
+            ]
+        };
         map.dedup_by_key(|(user, _design)| user.to_f64());
         self.0.axes.push(babelfont::Axis {
             name: name.into(),
@@ -285,28 +244,28 @@ mod tests {
     #[test]
     fn test_masters() {
         let mut font_core = FakeFont::new(LatinCoverage::Full, &[]).unwrap();
-        font_core.add_weight_axis(100.0, 400.0);
+        font_core.add_axis("wght", "Weight", 100.0, 400.0, 400.0, true, true);
         font_core.fill_out_masters(false, false);
         assert_eq!(font_core.0.axes.len(), 1);
         assert_eq!(font_core.0.masters.len(), 2);
 
         let mut font_core = FakeFont::new(LatinCoverage::Full, &[]).unwrap();
-        font_core.add_weight_axis(100.0, 700.0);
+        font_core.add_axis("wght", "Weight", 100.0, 700.0, 400.0, true, true);
         font_core.fill_out_masters(false, false);
         assert_eq!(font_core.0.axes.len(), 1);
         assert_eq!(font_core.0.masters.len(), 3);
 
         // Add weight and width
         let mut font_core = FakeFont::new(LatinCoverage::Full, &[]).unwrap();
-        font_core.add_weight_axis(100.0, 700.0);
-        font_core.add_width_axis(75.0, 100.0);
+        font_core.add_axis("wght", "Weight", 100.0, 400.0, 700.0, true, true);
+        font_core.add_axis("wdth", "Width", 75.0, 100.0, 100.0, true, true);
         font_core.fill_out_masters(false, false);
         assert_eq!(font_core.0.axes.len(), 2);
         assert_eq!(font_core.0.masters.len(), 6);
 
         let mut font_core = FakeFont::new(LatinCoverage::Full, &[]).unwrap();
-        font_core.add_weight_axis(100.0, 700.0);
-        font_core.add_width_axis(75.0, 125.0);
+        font_core.add_axis("wght", "Weight", 100.0, 400.0, 700.0, true, true);
+        font_core.add_axis("wdth", "Width", 75.0, 100.0, 125.0, true, true);
         font_core.fill_out_masters(true, true);
         assert_eq!(font_core.0.axes.len(), 2);
         assert_eq!(font_core.0.masters.len(), 9);
@@ -316,14 +275,14 @@ mod tests {
     fn test_add_deva_and_compile() {
         let mut font_core =
             FakeFont::new(LatinCoverage::Full, &[OtherSubsets::Devanagari]).unwrap();
-        font_core.add_weight_axis(100.0, 700.0);
+        font_core.add_axis("wght", "Weight", 100.0, 700.0, 400.0, true, true);
         font_core.fill_out_masters(false, false);
         font_core.compile().expect("Compilation failed");
 
         // and arabic
         let mut font_core =
             FakeFont::new(LatinCoverage::Full, &[OtherSubsets::StandardArabic]).unwrap();
-        font_core.add_weight_axis(100.0, 700.0);
+        font_core.add_axis("wght", "Weight", 100.0, 700.0, 400.0, true, true);
         font_core.fill_out_masters(false, false);
         font_core.compile().expect("Compilation failed");
 
@@ -333,7 +292,7 @@ mod tests {
             &[OtherSubsets::Devanagari, OtherSubsets::StandardArabic],
         )
         .unwrap();
-        font_core.add_weight_axis(100.0, 700.0);
+        font_core.add_axis("wght", "Weight", 100.0, 700.0, 400.0, true, true);
         font_core.fill_out_masters(false, false);
         font_core.compile().expect("Compilation failed");
     }
@@ -341,7 +300,7 @@ mod tests {
     #[test]
     fn test_arbitrary_axis() {
         let mut font_core = FakeFont::new(LatinCoverage::Full, &[]).unwrap();
-        font_core.add_arbitrary_axis("slnt", "Slaht", 0.0, 10.0, 0.0, true, true);
+        font_core.add_axis("slnt", "Slant", 0.0, 10.0, 0.0, true, true);
         font_core.fill_out_masters(false, false);
         assert_eq!(font_core.0.axes.len(), 1);
         assert_eq!(font_core.0.masters.len(), 2);
