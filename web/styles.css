@@ -189,12 +189,54 @@ body {
   grid-template-columns: repeat(4, minmax(0, 1fr));
 }
 
-/* Scripts come in tiers of decreasing priority; a thick line separates them.
-   Sits in the flex gap of .option-group, so the rule is centred between the
-   last tile of one tier and the first tile of the next. */
-.tiles.script-tier + .tiles.script-tier {
+/* Scripts come in tiers of decreasing priority, each with its own All/None
+   buttons. A thick rule separates one tier from the next. */
+.script-tiers {
+  display: flex;
+  flex-direction: column;
+  gap: 0.7rem;
+}
+
+.script-group {
+  display: flex;
+  flex-direction: column;
+  gap: 0.45rem;
+}
+
+.script-group + .script-group {
   border-top: 3px solid var(--border);
   padding-top: 1rem;
+}
+
+.script-group-head {
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.4rem;
+}
+
+/* A quiet pill: the tiers' All/None buttons and the axes Reset. */
+.btn-quiet {
+  padding: 0.1rem 0.6rem;
+  font-size: 0.74rem;
+  font-weight: 620;
+  color: var(--ink-muted);
+  background: transparent;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  cursor: pointer;
+  transition: color 0.12s ease, background-color 0.12s ease,
+    border-color 0.12s ease;
+}
+
+.btn-quiet:hover {
+  color: var(--on-accent);
+  background: var(--accent-solid);
+  border-color: var(--accent-solid);
+}
+
+.btn-quiet:focus-visible {
+  outline: 3px solid color-mix(in srgb, var(--accent) 50%, transparent);
+  outline-offset: 2px;
 }
 
 @media (max-width: 400px) {
@@ -335,6 +377,12 @@ body {
   align-items: center;
   justify-content: space-between;
   gap: 0.75rem;
+}
+
+.group-buttons {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
 }
 
 .btn-add-axis {

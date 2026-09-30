@@ -16,9 +16,18 @@
      const bytes = font.compile()                  // Uint8Array
      const tables = tableStats(bytes)              // Map<string, number>
 
+   Sizes also come from ./sizes.json, a cache of already-measured table sizes
+   keyed by `optionsKey(...)`, which the repository's
+   `examples/build_size_cache.rs` writes. It is looked up as soon as the options
+   change, so the figures appear without compiling anything. A miss simply
+   clears them; "Compile font" is what builds a font, and the only way to get
+   one to download.
+
    `scripts` is the list of checked `input[name="script"]` values, which the
    wasm module accepts verbatim: greek, cyrillic, cjk-basic, devanagari,
-   bengali, standard-arabic, farsi-urdu, thai, tamil, telugu, kannada.
+   bengali, standard-arabic, farsi-urdu, thai, tamil, telugu, kannada,
+   malayalam, gujarati, gurmukhi, oriya, khmer, lao, myanmar, ethiopic,
+   armenian, georgian.
 */
 
 /**
@@ -113,11 +122,13 @@ const els = {
   tableBody: document.querySelector("#table-breakdown tbody"),
   download: document.getElementById("download-button"),
   addAxisButton: document.getElementById("add-axis-button"),
+  resetAxesButton: document.getElementById("reset-axes-button"),
   axesWrap: document.getElementById("axes-wrap"),
   axesBody: document.getElementById("axes-body"),
   axesHint: document.getElementById("axes-hint"),
   axesError: document.getElementById("axes-error"),
   axisRowTemplate: document.getElementById("axis-row-template"),
+  scriptTiers: document.getElementById("script-tiers"),
 };
 
 let downloadUrl = null;
@@ -161,6 +172,172 @@ export function collectOptions() {
     kerning: document.getElementById("adjust-kerning").checked,
     advanceWidths: document.getElementById("adjust-advance-widths").checked,
   };
+}
+
+// ------------------------------------------------------------ options keys
+
+/**
+ * The key format's version. Bump it with `KEY_VERSION` in the Rust library when
+ * the grammar changes, or when a change to the library would make previously
+ * cached sizes wrong: it dates the cache as much as it versions the format.
+ */
+const KEY_VERSION = "v1";
+
+/** The characters the key grammar gives a meaning to. */
+const KEY_RESERVED = /[%;:+,]/g;
+
+/**
+ * Hide the characters the grammar uses. Hex escapes keep keys readable: only
+ * %, ;, :, + and , are ever rewritten.
+ * @param {string} text
+ * @returns {string}
+ */
+function escapeKeyField(text) {
+  return text.replace(
+    KEY_RESERVED,
+    (character) =>
+      `%${character.charCodeAt(0).toString(16).toUpperCase().padStart(2, "0")}`,
+  );
+}
+
+/**
+ * A coordinate in the key's canonical spelling. Rust's `{}` writes the same
+ * thing, except for negative zero, which it writes as "-0".
+ * @param {number} value
+ * @returns {string}
+ */
+function keyCoord(value) {
+  return Object.is(value, -0) ? "0" : String(value);
+}
+
+/**
+ * One axis record: tag:name:low:default:high:metrics:kerning. The name written
+ * is the one the font gets, so an empty box means the tag is used.
+ * @param {CustomAxis} axis
+ * @returns {string}
+ */
+function axisKey(axis) {
+  return [
+    escapeKeyField(axis.tag),
+    escapeKeyField(axis.name || axis.tag),
+    keyCoord(axis.low),
+    keyCoord(axis.default),
+    keyCoord(axis.high),
+    axis.affectsMetrics ? "1" : "0",
+    axis.affectsKerning ? "1" : "0",
+  ].join(":");
+}
+
+/**
+ * Serialize options into the key that indexes the compiled-size cache.
+ *
+ * Six `;`-separated fields — version, Latin coverage, scripts, axes, kerning,
+ * advance widths — for example
+ *
+ *     v1;core;greek+thai;wght:Weight:300:400:800:1:1;1;0
+ *
+ * Script and axis order are kept, because both reach the compiler in that
+ * order. `fakefont::Options::to_key` writes the same format, which is what lets
+ * a native binary build the cache this page reads; the two have to agree
+ * exactly or the cache is never found.
+ *
+ * @param {Options} options
+ * @returns {string}
+ */
+export function optionsKey(options) {
+  return [
+    KEY_VERSION,
+    options.latinCoverage,
+    options.scripts.join("+"),
+    options.axes.map(axisKey).join(","),
+    options.kerning ? "1" : "0",
+    options.advanceWidths ? "1" : "0",
+  ].join(";");
+}
+
+// --------------------------------------------------------------- size cache
+
+/**
+ * The sizes `examples/build_size_cache.rs` has already measured, keyed by
+ * `optionsKey`, fetched once from ./sizes.json. A page without one gets an
+ * empty object, so every lookup misses and nothing is shown until a compile.
+ * @type {Promise<Record<string, {masters: number, glyphs: number, tables: Record<string, number>}>>|null}
+ */
+let sizeCache = null;
+
+/**
+ * The cache, fetched on first use.
+ * @returns {Promise<Record<string, object>>}
+ */
+function loadSizeCache() {
+  if (!sizeCache) {
+    sizeCache = fetch("./sizes.json")
+      .then((response) => {
+        if (!response.ok) {
+          console.warn(
+            `[how-big-is-a-font] no size cache (${response.status} on ./sizes.json)`,
+          );
+          return {};
+        }
+        return response.json();
+      })
+      .catch((error) => {
+        console.warn(
+          "[how-big-is-a-font] could not read the size cache",
+          error,
+        );
+        return {};
+      });
+  }
+  return sizeCache;
+}
+
+let previewTimer = null;
+
+/** Look the current options up, coalescing a burst of changes into one look. */
+function refreshPreviewSoon() {
+  clearTimeout(previewTimer);
+  previewTimer = setTimeout(() => {
+    previewTimer = null;
+    refreshPreview();
+  }, 125);
+}
+
+/**
+ * Fill the results panel from the cache, or empty it if this combination has
+ * not been measured.
+ *
+ * Nothing is compiled here: the figures are the ones the cache recorded, and
+ * the download stays inert until the button has built a real font. A miss
+ * clears the panel rather than leaving the previous options' numbers on it.
+ * @returns {Promise<void>}
+ */
+async function refreshPreview() {
+  if (busy) return;
+  const cache = await loadSizeCache();
+  // A compile may have started while the cache was loading.
+  if (busy) return;
+
+  const entry = cache[optionsKey(collectOptions())];
+  if (!entry) {
+    els.results.hidden = true;
+    return;
+  }
+  renderResults({
+    fontBytes: null,
+    tables: entry.tables,
+    masters: entry.masters,
+    glyphs: entry.glyphs,
+    notice:
+      "From the size cache — press Compile font to build and download the font.",
+  });
+  els.results.hidden = false;
+}
+
+/** Any change to the options: remember them, and look the new ones up. */
+function optionsChanged() {
+  saveSettingsSoon();
+  refreshPreviewSoon();
 }
 
 /** Cached wasm module promise, so the (large) module is instantiated once. */
@@ -250,7 +427,7 @@ function addAxisRow(values = {}, focus = true) {
 
   els.axesBody.append(row);
   refreshAxes();
-  saveSettingsSoon();
+  optionsChanged();
   if (focus) field(".axis-tag-input").focus();
   return row;
 }
@@ -258,7 +435,7 @@ function addAxisRow(values = {}, focus = true) {
 function removeAxisRow(row) {
   row.remove();
   refreshAxes();
-  saveSettingsSoon();
+  optionsChanged();
 }
 
 /**
@@ -377,7 +554,17 @@ async function run() {
     console.error(error);
     // Don't leave the previous run's figures sitting under an error notice.
     els.body.hidden = true;
-    showNotice(`Something went wrong: ${error?.message ?? error}`, true);
+    // A trap — most often the module running out of memory on a large
+    // selection — leaves the instance unusable, so every later call on it
+    // fails too. There is nothing to do but start again.
+    const trapped = error instanceof WebAssembly.RuntimeError;
+    showNotice(
+      `Something went wrong: ${error?.message ?? error}` +
+        (trapped
+          ? ". The page has to be reloaded before another font can be compiled."
+          : ""),
+      true,
+    );
     reveal();
   } finally {
     setBusy(false);
@@ -704,18 +891,37 @@ els.compileButton.addEventListener("click", run);
 
 els.addAxisButton.addEventListener("click", () => addAxisRow());
 
+// Put the default designspace back. Each row goes in through `optionsChanged`,
+// so the saved settings and the cache lookup follow along.
+els.resetAxesButton.addEventListener("click", () => setAxes(DEFAULT_AXES));
+
 // Rows come and go, so the table's own listeners are delegated.
 els.axesBody.addEventListener("input", () => {
   refreshAxes();
-  saveSettingsSoon();
+  optionsChanged();
 });
 els.axesBody.addEventListener("click", (event) => {
   const button = event.target.closest(".btn-remove-axis");
   if (button) removeAxisRow(button.closest("tr"));
 });
 
-// Switching a script, coverage or interpolation choice is worth remembering.
-document.addEventListener("change", () => saveSettingsSoon());
+// Each tier has All/None buttons for its own tiles. The tiles are labels around
+// invisible checkboxes, so these set the boxes and save the result by hand.
+els.scriptTiers.addEventListener("click", (event) => {
+  const button = event.target.closest("[data-script-action]");
+  if (!button) return;
+  const wanted = button.dataset.scriptAction === "all";
+  for (const box of button
+    .closest(".script-group")
+    .querySelectorAll('input[name="script"]')) {
+    box.checked = wanted;
+  }
+  optionsChanged();
+});
+
+// A script, coverage or interpolation choice is worth remembering, and worth
+// looking up in the cache.
+document.addEventListener("change", () => optionsChanged());
 
 // Keep the download button from doing anything when it is inert.
 els.download.addEventListener("click", (event) => {
@@ -732,12 +938,16 @@ const stored = readStoredSettings();
 applySettings(stored);
 setAxes(Array.isArray(stored?.axes) ? stored.axes : DEFAULT_AXES);
 refreshAxes();
+// What was restored may already have been measured.
+refreshPreview();
 
 // Handy when poking at this from the devtools console.
 globalThis.HowBigIsAFont = {
   addAxisRow,
   clearSettings,
   collectOptions,
+  optionsKey,
+  refreshPreview,
   renderResults,
   run,
   validateAxes,

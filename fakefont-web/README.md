@@ -43,6 +43,8 @@ const tables = tableStats(bytes); // Map<string, number>
 ```
 greek  cyrillic  cjk-basic  devanagari  bengali  standard-arabic
 farsi-urdu  thai  tamil  telugu  kannada
+malayalam  gujarati  gurmukhi  oriya  khmer  lao  myanmar
+ethiopic  armenian  georgian
 ```
 
 These are the `value` attributes of the script tiles in `web/index.html`, so the
@@ -54,6 +56,26 @@ printable ASCII bytes. It also rejects non-finite coordinates, `low >= high`,
 and a `default` outside `low..high`. Note the library's argument order:
 `low`, `high`, `default`. A `wght` axis is warped the way the library warps a
 weight axis, so it compiles an `avar` table rather than a linear mapping.
+
+## Options keys
+
+A whole build request can be spelled out as a short string key:
+
+```
+v1;core;greek+thai;wght:Weight:300:400:800:1:1;1;0
+```
+
+Six `;`-separated fields — version, Latin coverage, scripts, axes, kerning,
+advance widths — with axis records joined by `,` as
+`tag:name:low:default:high:metrics:kerning`. Keys are what a cache of compiled
+sizes is indexed by, so `fakefont::Options::to_key` (which writes one) and
+`fakefont::Options::from_key` (which reads one back) have to agree with the
+page's `optionsKey` in `web/app.js` exactly.
+`fakefont::FakeFont::from_key` turns a key straight into a font that is ready to
+compile, which is how a native binary can build such a cache.
+
+The wrapper itself does not expose any of this: the page builds its font with the
+explicit calls above.
 
 ## Building
 

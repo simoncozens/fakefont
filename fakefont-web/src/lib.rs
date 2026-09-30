@@ -40,10 +40,13 @@ impl FakeFont {
     fn build(latin_coverage: &str, subsets: &[String]) -> Result<Self, String> {
         let mut parsed = Vec::with_capacity(subsets.len());
         for name in subsets {
-            parsed.push(parse_subset(name)?);
+            parsed.push(fakefont::OtherSubsets::from_name(name)?);
         }
-        let inner = fakefont::FakeFont::new(parse_latin_coverage(latin_coverage)?, &parsed)
-            .map_err(|error| error.to_string())?;
+        // The names are the page's tile values, and the library owns the list
+        // of them: the key format writes the same ones.
+        let inner =
+            fakefont::FakeFont::new(fakefont::LatinCoverage::from_name(latin_coverage)?, &parsed)
+                .map_err(|error| error.to_string())?;
         Ok(FakeFont { inner })
     }
 
@@ -52,6 +55,9 @@ impl FakeFont {
     }
 
     /// Validates an axis and hands it to the library.
+    ///
+    /// The checks live in the library, next to `add_axis`, because the key
+    /// format needs them too.
     // The argument list mirrors `fakefont::FakeFont::add_axis`, which is the
     // point of this crate.
     #[allow(clippy::too_many_arguments)]
@@ -65,7 +71,7 @@ impl FakeFont {
         affects_metrics: bool,
         affects_kerning: bool,
     ) -> Result<(), String> {
-        check_axis(tag, low, high, default)?;
+        fakefont::check_axis(tag, low, high, default)?;
         self.inner.add_axis(
             tag,
             name,
@@ -86,8 +92,10 @@ impl FakeFont {
     ///
     /// The names are the values of the script tiles on the page: `"greek"`,
     /// `"cyrillic"`, `"devanagari"`, `"standard-arabic"`, `"farsi-urdu"`,
-    /// `"cjk-basic"`, `"bengali"`, `"thai"`, `"tamil"`, `"telugu"` and
-    /// `"kannada"`. Anything else throws.
+    /// `"cjk-basic"`, `"bengali"`, `"thai"`, `"tamil"`, `"telugu"`,
+    /// `"kannada"`, `"malayalam"`, `"gujarati"`, `"gurmukhi"`, `"oriya"`,
+    /// `"khmer"`, `"lao"`, `"myanmar"`, `"ethiopic"`, `"armenian"` and
+    /// `"georgian"`. Anything else throws.
     ///
     /// Every subset is chosen here rather than one call per script, because the
     /// font is cut out of the source data in a single pass and cannot gain
@@ -183,82 +191,12 @@ fn start() {
     console_error_panic_hook::set_once();
 }
 
-/// Map the web app's `latinCoverage` string onto the library's enum.
-fn parse_latin_coverage(name: &str) -> Result<fakefont::LatinCoverage, String> {
-    match name {
-        "full" => Ok(fakefont::LatinCoverage::Full),
-        "core" => Ok(fakefont::LatinCoverage::Core),
-        "kernel" => Ok(fakefont::LatinCoverage::Kernel),
-        other => Err(format!(
-            "unknown Latin coverage {other:?}: expected \"full\", \"core\" or \"kernel\""
-        )),
-    }
-}
-
-/// Map the value of a script tile on the page onto the library's enum.
-///
-/// These are the `value` attributes in `web/index.html`, passed through
-/// unchanged, so the two lists need to be kept in step.
-fn parse_subset(name: &str) -> Result<fakefont::OtherSubsets, String> {
-    use fakefont::OtherSubsets as Subset;
-
-    Ok(match name {
-        "greek" => Subset::Greek,
-        "cyrillic" => Subset::Cyrillic,
-        "cjk-basic" => Subset::CjkBasic,
-        "devanagari" => Subset::Devanagari,
-        "bengali" => Subset::Bengali,
-        "standard-arabic" => Subset::StandardArabic,
-        "farsi-urdu" => Subset::UrduFarsi,
-        "thai" => Subset::Thai,
-        "tamil" => Subset::Tamil,
-        "telugu" => Subset::Telugu,
-        "kannada" => Subset::Kannada,
-        other => {
-            return Err(format!(
-                "unknown script {other:?}: expected greek, cyrillic, cjk-basic, \
-                 devanagari, bengali, standard-arabic, farsi-urdu, thai, tamil, \
-                 telugu or kannada"
-            ));
-        }
-    })
-}
-
-/// Reject anything the library cannot turn into an axis.
-///
-/// The tag matters most: `fakefont` pads it to four bytes and calls
-/// `Tag::new_checked(..).unwrap()`, so a tag that is too long or is not
-/// printable ASCII panics. A panic in wasm aborts the module and poisons the
-/// page, so it has to be caught before the call.
-fn check_axis(tag: &str, low: f64, high: f64, default: f64) -> Result<(), String> {
-    let bytes = tag.as_bytes();
-    if bytes.len() != 4 || !bytes.iter().all(|byte| (0x20..=0x7e).contains(byte)) {
-        return Err(format!(
-            "axis tag {tag:?} must be exactly four printable ASCII characters"
-        ));
-    }
-    if ![low, high, default].iter().all(|value| value.is_finite()) {
-        return Err(format!(
-            "axis {tag:?} has a coordinate that is not a finite number"
-        ));
-    }
-    if low >= high {
-        return Err(format!("axis {tag:?} needs low to be less than high"));
-    }
-    if default < low || default > high {
-        return Err(format!(
-            "axis {tag:?} needs its default to lie between low and high"
-        ));
-    }
-    Ok(())
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
 
     /// The script names carried by the tiles in `web/index.html`.
-    const SCRIPTS: [&str; 11] = [
+    const SCRIPTS: [&str; 21] = [
         "greek",
         "cyrillic",
         "devanagari",
@@ -270,57 +208,22 @@ mod tests {
         "tamil",
         "telugu",
         "kannada",
+        "malayalam",
+        "gujarati",
+        "gurmukhi",
+        "oriya",
+        "khmer",
+        "lao",
+        "myanmar",
+        "ethiopic",
+        "armenian",
+        "georgian",
     ];
 
     /// `build` takes owned names, because that is what wasm-bindgen hands us
     /// from a JavaScript array.
     fn names(list: &[&str]) -> Vec<String> {
         list.iter().map(|name| (*name).to_string()).collect()
-    }
-
-    #[test]
-    fn parses_coverage_names() {
-        assert!(matches!(
-            parse_latin_coverage("full"),
-            Ok(fakefont::LatinCoverage::Full)
-        ));
-        assert!(matches!(
-            parse_latin_coverage("core"),
-            Ok(fakefont::LatinCoverage::Core)
-        ));
-        assert!(matches!(
-            parse_latin_coverage("kernel"),
-            Ok(fakefont::LatinCoverage::Kernel)
-        ));
-        assert!(parse_latin_coverage("Core").is_err());
-        assert!(parse_latin_coverage("").is_err());
-    }
-
-    /// The page passes its tile values straight through, so each one has to
-    /// reach the matching variant, and anything else has to be rejected.
-    #[test]
-    fn parses_subset_names() {
-        use fakefont::OtherSubsets as Subset;
-
-        assert!(matches!(parse_subset("greek"), Ok(Subset::Greek)));
-        assert!(matches!(parse_subset("cyrillic"), Ok(Subset::Cyrillic)));
-        assert!(matches!(parse_subset("cjk-basic"), Ok(Subset::CjkBasic)));
-        assert!(matches!(parse_subset("devanagari"), Ok(Subset::Devanagari)));
-        assert!(matches!(parse_subset("bengali"), Ok(Subset::Bengali)));
-        assert!(matches!(
-            parse_subset("standard-arabic"),
-            Ok(Subset::StandardArabic)
-        ));
-        assert!(matches!(parse_subset("farsi-urdu"), Ok(Subset::UrduFarsi)));
-        assert!(matches!(parse_subset("thai"), Ok(Subset::Thai)));
-        assert!(matches!(parse_subset("tamil"), Ok(Subset::Tamil)));
-        assert!(matches!(parse_subset("telugu"), Ok(Subset::Telugu)));
-        assert!(matches!(parse_subset("kannada"), Ok(Subset::Kannada)));
-
-        // The names are the page's lowercase tile values, and nothing else.
-        for wrong in ["", "Greek", "farsi", "cjkbasic", "arabic", "devanagari "] {
-            assert!(parse_subset(wrong).is_err(), "{wrong:?} should not parse");
-        }
     }
 
     /// Drives the same call sequence the web app uses, on the host.
@@ -377,29 +280,41 @@ mod tests {
         assert!(!tables.contains_key("fvar"), "tables: {tables:?}");
     }
 
-    #[test]
-    fn accepts_well_formed_axes() {
-        assert!(check_axis("slnt", -15.0, 15.0, 0.0).is_ok());
-        assert!(check_axis("opsz", 6.0, 144.0, 12.0).is_ok());
-        // A default sitting on either end of the range is fine.
-        assert!(check_axis("XXXX", 0.0, 100.0, 0.0).is_ok());
-        assert!(check_axis("XXXX", 0.0, 100.0, 100.0).is_ok());
-    }
-
+    /// Bad axes have to be caught before the library sees them: `add_axis`
+    /// panics on a tag it cannot use, and a panic aborts the wasm module.
     #[test]
     fn rejects_axes_the_library_would_panic_on() {
+        let mut font = FakeFont::build("kernel", &[]).expect("build");
+
         // Too short / too long / not printable ASCII / not ASCII at all.
-        assert!(check_axis("abc", 0.0, 10.0, 5.0).is_err());
-        assert!(check_axis("abcde", 0.0, 10.0, 5.0).is_err());
-        assert!(check_axis("ab\tc", 0.0, 10.0, 5.0).is_err());
-        assert!(check_axis("abçd", 0.0, 10.0, 5.0).is_err());
-        assert!(check_axis("", 0.0, 10.0, 5.0).is_err());
+        for tag in ["abc", "abcde", "ab\tc", "ab\u{e7}d", ""] {
+            assert!(
+                font.add_axis_checked(tag, "Small", 0.0, 10.0, 5.0, true, true)
+                    .is_err(),
+                "{tag:?} should be rejected"
+            );
+        }
         // Numeric problems.
-        assert!(check_axis("slnt", 15.0, -15.0, 0.0).is_err());
-        assert!(check_axis("slnt", 0.0, 0.0, 0.0).is_err());
-        assert!(check_axis("slnt", 0.0, 10.0, 11.0).is_err());
-        assert!(check_axis("slnt", 0.0, 10.0, f64::NAN).is_err());
-        assert!(check_axis("slnt", f64::NEG_INFINITY, 10.0, 0.0).is_err());
+        for (low, high, default) in [
+            (15.0, -15.0, 0.0),
+            (0.0, 0.0, 0.0),
+            (0.0, 10.0, 11.0),
+            (0.0, 10.0, f64::NAN),
+            (f64::NEG_INFINITY, 10.0, 0.0),
+        ] {
+            assert!(
+                font.add_axis_checked("slnt", "Slant", low, high, default, true, true)
+                    .is_err(),
+                "{low}/{high}/{default} should be rejected"
+            );
+        }
+
+        // A good one still goes through.
+        assert!(
+            font.add_axis_checked("slnt", "Slant", -15.0, 15.0, 0.0, true, true)
+                .is_ok()
+        );
+        assert_eq!(font.master_count(), 1, "nothing was filled out yet");
     }
 
     /// The path the page takes when the user fills in a custom axis.

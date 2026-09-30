@@ -14,6 +14,9 @@ use std::collections::{HashMap, HashSet};
 use std::io::Read;
 use std::sync::LazyLock;
 mod fakeaxis;
+mod key;
+
+pub use key::{AxisSpec, KEY_VERSION, KeyError, Options};
 
 /// Codepoint lists for the scripts that Google Fonts publishes no glyphset for.
 ///
@@ -34,7 +37,7 @@ static A_BIG_FONT: LazyLock<Font> =
     LazyLock::new(|| unzip_and_babelfont(include_bytes!("../resources/everything.babelfont.gz")));
 
 /// Represents the coverage level of Latin characters in a fake font.
-#[derive(PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum LatinCoverage {
     /// Full Latin coverage, including core, kernel, African, Vietnamese, and additional Latin characters.
     Full,
@@ -44,7 +47,33 @@ pub enum LatinCoverage {
     Kernel,
 }
 
+impl LatinCoverage {
+    /// The name the web page's coverage tiles use, and the one a key writes.
+    pub fn name(&self) -> &'static str {
+        match self {
+            LatinCoverage::Full => "full",
+            LatinCoverage::Core => "core",
+            LatinCoverage::Kernel => "kernel",
+        }
+    }
+
+    /// Reads one of those names back.
+    pub fn from_name(name: &str) -> Result<Self, String> {
+        Ok(match name {
+            "full" => LatinCoverage::Full,
+            "core" => LatinCoverage::Core,
+            "kernel" => LatinCoverage::Kernel,
+            other => {
+                return Err(format!(
+                    "unknown Latin coverage {other:?}: expected \"full\", \"core\" or \"kernel\""
+                ));
+            }
+        })
+    }
+}
+
 /// Represents other script subsets that can be included in a fake font.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum OtherSubsets {
     /// Greek script subset.
     Greek,
@@ -68,6 +97,82 @@ pub enum OtherSubsets {
     Telugu,
     /// Kannada script subset.
     Kannada,
+    /// Malayalam script subset.
+    Malayalam,
+    /// Gujarati script subset.
+    Gujarati,
+    /// Gurmukhi script subset.
+    Gurmukhi,
+    /// Oriya, also called Odia, script subset.
+    Oriya,
+    /// Khmer script subset.
+    Khmer,
+    /// Lao script subset.
+    Lao,
+    /// Myanmar, also called Burmese, script subset.
+    Myanmar,
+    /// Ethiopic script subset.
+    Ethiopic,
+    /// Armenian script subset.
+    Armenian,
+    /// Georgian script subset.
+    Georgian,
+}
+
+/// Every subset, with the name its tile on the page uses.
+///
+/// One list, because the page's `value` attributes, [`OtherSubsets::from_name`]
+/// and the keys a size cache is built from all have to agree character for
+/// character.
+const SUBSET_NAMES: [(OtherSubsets, &'static str); 21] = [
+    (OtherSubsets::Greek, "greek"),
+    (OtherSubsets::Cyrillic, "cyrillic"),
+    (OtherSubsets::CjkBasic, "cjk-basic"),
+    (OtherSubsets::Devanagari, "devanagari"),
+    (OtherSubsets::Bengali, "bengali"),
+    (OtherSubsets::StandardArabic, "standard-arabic"),
+    (OtherSubsets::UrduFarsi, "farsi-urdu"),
+    (OtherSubsets::Thai, "thai"),
+    (OtherSubsets::Tamil, "tamil"),
+    (OtherSubsets::Telugu, "telugu"),
+    (OtherSubsets::Kannada, "kannada"),
+    (OtherSubsets::Malayalam, "malayalam"),
+    (OtherSubsets::Gujarati, "gujarati"),
+    (OtherSubsets::Gurmukhi, "gurmukhi"),
+    (OtherSubsets::Oriya, "oriya"),
+    (OtherSubsets::Khmer, "khmer"),
+    (OtherSubsets::Lao, "lao"),
+    (OtherSubsets::Myanmar, "myanmar"),
+    (OtherSubsets::Ethiopic, "ethiopic"),
+    (OtherSubsets::Armenian, "armenian"),
+    (OtherSubsets::Georgian, "georgian"),
+];
+
+impl OtherSubsets {
+    /// The name the web page's script tiles use, and the one a key writes.
+    pub fn name(&self) -> &'static str {
+        SUBSET_NAMES
+            .iter()
+            .find(|(subset, _)| subset == self)
+            .map(|(_, name)| *name)
+            .expect("every subset has a name")
+    }
+
+    /// Reads one of those names back.
+    pub fn from_name(name: &str) -> Result<Self, String> {
+        SUBSET_NAMES
+            .iter()
+            .find(|(_, known)| *known == name)
+            .map(|(subset, _)| *subset)
+            .ok_or_else(|| {
+                let expected = SUBSET_NAMES
+                    .iter()
+                    .map(|(_, name)| *name)
+                    .collect::<Vec<_>>()
+                    .join(", ");
+                format!("unknown script {name:?}: expected one of {expected}")
+            })
+    }
 }
 
 /// The main type representing a fake font.
@@ -131,6 +236,36 @@ impl FakeFont {
                 }
                 OtherSubsets::Kannada => {
                     wanted_cps.extend(codepoints::KANNADA.iter().copied());
+                }
+                OtherSubsets::Malayalam => {
+                    wanted_cps.extend(codepoints::MALAYALAM.iter().copied());
+                }
+                OtherSubsets::Gujarati => {
+                    wanted_cps.extend(codepoints::GUJARATI.iter().copied());
+                }
+                OtherSubsets::Gurmukhi => {
+                    wanted_cps.extend(codepoints::GURMUKHI.iter().copied());
+                }
+                OtherSubsets::Oriya => {
+                    wanted_cps.extend(codepoints::ORIYA.iter().copied());
+                }
+                OtherSubsets::Khmer => {
+                    wanted_cps.extend(codepoints::KHMER.iter().copied());
+                }
+                OtherSubsets::Lao => {
+                    wanted_cps.extend(codepoints::LAO.iter().copied());
+                }
+                OtherSubsets::Myanmar => {
+                    wanted_cps.extend(codepoints::MYANMAR.iter().copied());
+                }
+                OtherSubsets::Ethiopic => {
+                    wanted_cps.extend(codepoints::ETHIOPIC.iter().copied());
+                }
+                OtherSubsets::Armenian => {
+                    wanted_cps.extend(codepoints::ARMENIAN.iter().copied());
+                }
+                OtherSubsets::Georgian => {
+                    wanted_cps.extend(codepoints::GEORGIAN.iter().copied());
                 }
             }
         }
@@ -207,6 +342,36 @@ impl FakeFont {
         )?;
         Ok(bytes)
     }
+}
+
+/// Rejects a tag or a coordinate range that [`FakeFont::add_axis`] cannot turn
+/// into an axis.
+///
+/// `add_axis` pads the tag to four bytes and unwraps it, so a tag that is not
+/// exactly four printable ASCII bytes panics, which in wasm takes the module
+/// down with it. Callers which accept axis descriptions from a person — the
+/// page, or [`Options::from_key`] — reject them with this first.
+pub fn check_axis(tag: &str, low: f64, high: f64, default: f64) -> Result<(), String> {
+    let bytes = tag.as_bytes();
+    if bytes.len() != 4 || !bytes.iter().all(|byte| (0x20..=0x7e).contains(byte)) {
+        return Err(format!(
+            "axis tag {tag:?} must be exactly four printable ASCII characters"
+        ));
+    }
+    if ![low, high, default].iter().all(|value| value.is_finite()) {
+        return Err(format!(
+            "axis {tag:?} has a coordinate that is not a finite number"
+        ));
+    }
+    if low >= high {
+        return Err(format!("axis {tag:?} needs low to be less than high"));
+    }
+    if default < low || default > high {
+        return Err(format!(
+            "axis {tag:?} needs its default to lie between low and high"
+        ));
+    }
+    Ok(())
 }
 
 /// Returns a map of table tags to their lengths for the given font bytes.
@@ -358,5 +523,81 @@ mod tests {
         .unwrap();
         let bytes = one.compile().expect("compile");
         assert!(!bytes.is_empty(), "compiled font should have non-zero size");
+    }
+
+    /// The names are the page's tile values, and the key format writes the same
+    /// ones, so this list is what keeps the page, the keys and the library in
+    /// step.
+    #[test]
+    fn names_match_the_page() {
+        for name in [
+            "greek",
+            "cyrillic",
+            "cjk-basic",
+            "devanagari",
+            "bengali",
+            "standard-arabic",
+            "farsi-urdu",
+            "thai",
+            "tamil",
+            "telugu",
+            "kannada",
+            "malayalam",
+            "gujarati",
+            "gurmukhi",
+            "oriya",
+            "khmer",
+            "lao",
+            "myanmar",
+            "ethiopic",
+            "armenian",
+            "georgian",
+        ] {
+            let subset = OtherSubsets::from_name(name).expect(name);
+            assert_eq!(subset.name(), name, "{name} did not round trip");
+        }
+        for wrong in ["", "Greek", "farsi", "cjkbasic", "arabic", "devanagari "] {
+            assert!(
+                OtherSubsets::from_name(wrong).is_err(),
+                "{wrong:?} should not parse"
+            );
+        }
+
+        for (name, coverage) in [
+            ("full", LatinCoverage::Full),
+            ("core", LatinCoverage::Core),
+            ("kernel", LatinCoverage::Kernel),
+        ] {
+            assert_eq!(LatinCoverage::from_name(name).expect(name), coverage);
+            assert_eq!(coverage.name(), name);
+        }
+        assert!(LatinCoverage::from_name("Core").is_err());
+        assert!(LatinCoverage::from_name("").is_err());
+    }
+
+    /// `add_axis` panics on a tag it cannot use, so anything taking axes from a
+    /// person checks them with this first.
+    #[test]
+    fn check_axis_accepts_what_add_axis_can_use() {
+        assert!(check_axis("slnt", -15.0, 15.0, 0.0).is_ok());
+        assert!(check_axis("opsz", 6.0, 144.0, 12.0).is_ok());
+        // A default sitting on either end of the range is fine.
+        assert!(check_axis("XXXX", 0.0, 100.0, 0.0).is_ok());
+        assert!(check_axis("XXXX", 0.0, 100.0, 100.0).is_ok());
+        // Spaces are printable ASCII, so a padded tag is legal.
+        assert!(check_axis("ab  ", 0.0, 100.0, 0.0).is_ok());
+
+        // Too short / too long / not printable ASCII / not ASCII at all.
+        assert!(check_axis("abc", 0.0, 10.0, 5.0).is_err());
+        assert!(check_axis("abcde", 0.0, 10.0, 5.0).is_err());
+        assert!(check_axis("ab\tc", 0.0, 10.0, 5.0).is_err());
+        assert!(check_axis("ab\u{e7}d", 0.0, 10.0, 5.0).is_err());
+        assert!(check_axis("", 0.0, 10.0, 5.0).is_err());
+        // Numeric problems.
+        assert!(check_axis("slnt", 15.0, -15.0, 0.0).is_err());
+        assert!(check_axis("slnt", 0.0, 0.0, 0.0).is_err());
+        assert!(check_axis("slnt", 0.0, 10.0, 11.0).is_err());
+        assert!(check_axis("slnt", 0.0, 10.0, f64::NAN).is_err());
+        assert!(check_axis("slnt", f64::NEG_INFINITY, 10.0, 0.0).is_err());
     }
 }

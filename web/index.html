@@ -88,149 +88,368 @@
 
             <div class="option-group">
               <p class="group-label">Additional scripts</p>
-              <div class="tiles tiles-2 script-tier">
-                <input
-                  class="tile-input"
-                  type="checkbox"
-                  name="script"
-                  id="script-greek"
-                  value="greek"
-                />
-                <label class="tile" for="script-greek">
-                  <span class="tile-icon" aria-hidden="true">Ω</span>
-                  <span class="tile-label">Greek</span>
-                </label>
 
-                <input
-                  class="tile-input"
-                  type="checkbox"
-                  name="script"
-                  id="script-cyrillic"
-                  value="cyrillic"
-                />
-                <label class="tile" for="script-cyrillic">
-                  <span class="tile-icon" aria-hidden="true">Д</span>
-                  <span class="tile-label">Cyrillic</span>
-                </label>
-              </div>
+              <div class="script-tiers" id="script-tiers">
+                <div
+                  class="script-group"
+                  role="group"
+                  aria-label="Script tier 1"
+                >
+                  <div class="script-group-head">
+                    <button
+                      type="button"
+                      class="btn-quiet"
+                      data-script-action="all"
+                      aria-label="Select every script in tier 1"
+                    >
+                      All
+                    </button>
+                    <button
+                      type="button"
+                      class="btn-quiet"
+                      data-script-action="none"
+                      aria-label="Deselect every script in tier 1"
+                    >
+                      None
+                    </button>
+                  </div>
+                  <div class="tiles tiles-2">
+                    <input
+                      class="tile-input"
+                      type="checkbox"
+                      name="script"
+                      id="script-greek"
+                      value="greek"
+                    />
+                    <label class="tile" for="script-greek">
+                      <span class="tile-icon" aria-hidden="true">Ω</span>
+                      <span class="tile-label">Greek</span>
+                    </label>
 
-              <div class="tiles tiles-2 script-tier">
-                <input
-                  class="tile-input"
-                  type="checkbox"
-                  name="script"
-                  id="script-devanagari"
-                  value="devanagari"
-                />
-                <label class="tile" for="script-devanagari">
-                  <span class="tile-icon" aria-hidden="true">क</span>
-                  <span class="tile-label">Devanagari</span>
-                </label>
+                    <input
+                      class="tile-input"
+                      type="checkbox"
+                      name="script"
+                      id="script-cyrillic"
+                      value="cyrillic"
+                    />
+                    <label class="tile" for="script-cyrillic">
+                      <span class="tile-icon" aria-hidden="true">Д</span>
+                      <span class="tile-label">Cyrillic</span>
+                    </label>
+                  </div>
+                </div>
 
-                <input
-                  class="tile-input"
-                  type="checkbox"
-                  name="script"
-                  id="script-standard-arabic"
-                  value="standard-arabic"
-                />
-                <label class="tile" for="script-standard-arabic">
-                  <span class="tile-icon" aria-hidden="true">ب</span>
-                  <span class="tile-label">Standard Arabic</span>
-                </label>
-              </div>
+                <div
+                  class="script-group"
+                  role="group"
+                  aria-label="Script tier 2"
+                >
+                  <div class="script-group-head">
+                    <button
+                      type="button"
+                      class="btn-quiet"
+                      data-script-action="all"
+                      aria-label="Select every script in tier 2"
+                    >
+                      All
+                    </button>
+                    <button
+                      type="button"
+                      class="btn-quiet"
+                      data-script-action="none"
+                      aria-label="Deselect every script in tier 2"
+                    >
+                      None
+                    </button>
+                  </div>
+                  <div class="tiles tiles-2">
+                    <input
+                      class="tile-input"
+                      type="checkbox"
+                      name="script"
+                      id="script-devanagari"
+                      value="devanagari"
+                    />
+                    <label class="tile" for="script-devanagari">
+                      <span class="tile-icon" aria-hidden="true">क</span>
+                      <span class="tile-label">Devanagari</span>
+                    </label>
 
-              <div class="tiles tiles-2 script-tier">
-                <input
-                  class="tile-input"
-                  type="checkbox"
-                  name="script"
-                  id="script-cjk-basic"
-                  value="cjk-basic"
-                />
-                <label class="tile" for="script-cjk-basic">
-                  <span class="tile-icon" aria-hidden="true">汉</span>
-                  <span class="tile-label">CJK Basic</span>
-                </label>
+                    <input
+                      class="tile-input"
+                      type="checkbox"
+                      name="script"
+                      id="script-standard-arabic"
+                      value="standard-arabic"
+                    />
+                    <label class="tile" for="script-standard-arabic">
+                      <span class="tile-icon" aria-hidden="true">ب</span>
+                      <span class="tile-label">Standard Arabic</span>
+                    </label>
+                  </div>
+                </div>
 
-                <input
-                  class="tile-input"
-                  type="checkbox"
-                  name="script"
-                  id="script-bengali"
-                  value="bengali"
-                />
-                <label class="tile" for="script-bengali">
-                  <span class="tile-icon" aria-hidden="true">ব</span>
-                  <span class="tile-label">Bengali</span>
-                </label>
+                <div
+                  class="script-group"
+                  role="group"
+                  aria-label="Script tier 3"
+                >
+                  <div class="script-group-head">
+                    <button
+                      type="button"
+                      class="btn-quiet"
+                      data-script-action="all"
+                      aria-label="Select every script in tier 3"
+                    >
+                      All
+                    </button>
+                    <button
+                      type="button"
+                      class="btn-quiet"
+                      data-script-action="none"
+                      aria-label="Deselect every script in tier 3"
+                    >
+                      None
+                    </button>
+                  </div>
+                  <div class="tiles tiles-2">
+                    <input
+                      class="tile-input"
+                      type="checkbox"
+                      name="script"
+                      id="script-cjk-basic"
+                      value="cjk-basic"
+                    />
+                    <label class="tile" for="script-cjk-basic">
+                      <span class="tile-icon" aria-hidden="true">汉</span>
+                      <span class="tile-label">CJK Basic</span>
+                    </label>
 
-                <input
-                  class="tile-input"
-                  type="checkbox"
-                  name="script"
-                  id="script-thai"
-                  value="thai"
-                />
-                <label class="tile" for="script-thai">
-                  <span class="tile-icon" aria-hidden="true">ก</span>
-                  <span class="tile-label">Thai</span>
-                </label>
-              </div>
+                    <input
+                      class="tile-input"
+                      type="checkbox"
+                      name="script"
+                      id="script-bengali"
+                      value="bengali"
+                    />
+                    <label class="tile" for="script-bengali">
+                      <span class="tile-icon" aria-hidden="true">ব</span>
+                      <span class="tile-label">Bengali</span>
+                    </label>
 
-              <div class="tiles tiles-2 script-tier">
-                <input
-                  class="tile-input"
-                  type="checkbox"
-                  name="script"
-                  id="script-farsi-urdu"
-                  value="farsi-urdu"
-                />
-                <label class="tile" for="script-farsi-urdu">
-                  <span class="tile-icon" aria-hidden="true">چ</span>
-                  <span class="tile-label">Farsi/Urdu</span>
-                </label>
+                    <input
+                      class="tile-input"
+                      type="checkbox"
+                      name="script"
+                      id="script-thai"
+                      value="thai"
+                    />
+                    <label class="tile" for="script-thai">
+                      <span class="tile-icon" aria-hidden="true">ก</span>
+                      <span class="tile-label">Thai</span>
+                    </label>
+                  </div>
+                </div>
 
-                <input
-                  class="tile-input"
-                  type="checkbox"
-                  name="script"
-                  id="script-tamil"
-                  value="tamil"
-                />
-                <label class="tile" for="script-tamil">
-                  <span class="tile-icon" aria-hidden="true">க</span>
-                  <span class="tile-label">Tamil</span>
-                </label>
+                <div
+                  class="script-group"
+                  role="group"
+                  aria-label="Script tier 4"
+                >
+                  <div class="script-group-head">
+                    <button
+                      type="button"
+                      class="btn-quiet"
+                      data-script-action="all"
+                      aria-label="Select every script in tier 4"
+                    >
+                      All
+                    </button>
+                    <button
+                      type="button"
+                      class="btn-quiet"
+                      data-script-action="none"
+                      aria-label="Deselect every script in tier 4"
+                    >
+                      None
+                    </button>
+                  </div>
+                  <div class="tiles tiles-2">
+                    <input
+                      class="tile-input"
+                      type="checkbox"
+                      name="script"
+                      id="script-farsi-urdu"
+                      value="farsi-urdu"
+                    />
+                    <label class="tile" for="script-farsi-urdu">
+                      <span class="tile-icon" aria-hidden="true">چ</span>
+                      <span class="tile-label">Farsi/Urdu</span>
+                    </label>
 
-                <input
-                  class="tile-input"
-                  type="checkbox"
-                  name="script"
-                  id="script-telugu"
-                  value="telugu"
-                />
-                <label class="tile" for="script-telugu">
-                  <span class="tile-icon" aria-hidden="true">క</span>
-                  <span class="tile-label">Telugu</span>
-                </label>
+                    <input
+                      class="tile-input"
+                      type="checkbox"
+                      name="script"
+                      id="script-tamil"
+                      value="tamil"
+                    />
+                    <label class="tile" for="script-tamil">
+                      <span class="tile-icon" aria-hidden="true">க</span>
+                      <span class="tile-label">Tamil</span>
+                    </label>
 
-                <input
-                  class="tile-input"
-                  type="checkbox"
-                  name="script"
-                  id="script-kannada"
-                  value="kannada"
-                />
-                <label class="tile" for="script-kannada">
-                  <span class="tile-icon" aria-hidden="true">ಕ</span>
-                  <span class="tile-label">Kannada</span>
-                </label>
+                    <input
+                      class="tile-input"
+                      type="checkbox"
+                      name="script"
+                      id="script-telugu"
+                      value="telugu"
+                    />
+                    <label class="tile" for="script-telugu">
+                      <span class="tile-icon" aria-hidden="true">క</span>
+                      <span class="tile-label">Telugu</span>
+                    </label>
+
+                    <input
+                      class="tile-input"
+                      type="checkbox"
+                      name="script"
+                      id="script-kannada"
+                      value="kannada"
+                    />
+                    <label class="tile" for="script-kannada">
+                      <span class="tile-icon" aria-hidden="true">ಕ</span>
+                      <span class="tile-label">Kannada</span>
+                    </label>
+
+                    <input
+                      class="tile-input"
+                      type="checkbox"
+                      name="script"
+                      id="script-malayalam"
+                      value="malayalam"
+                    />
+                    <label class="tile" for="script-malayalam">
+                      <span class="tile-icon" aria-hidden="true">മ</span>
+                      <span class="tile-label">Malayalam</span>
+                    </label>
+
+                    <input
+                      class="tile-input"
+                      type="checkbox"
+                      name="script"
+                      id="script-gujarati"
+                      value="gujarati"
+                    />
+                    <label class="tile" for="script-gujarati">
+                      <span class="tile-icon" aria-hidden="true">ગ</span>
+                      <span class="tile-label">Gujarati</span>
+                    </label>
+
+                    <input
+                      class="tile-input"
+                      type="checkbox"
+                      name="script"
+                      id="script-gurmukhi"
+                      value="gurmukhi"
+                    />
+                    <label class="tile" for="script-gurmukhi">
+                      <span class="tile-icon" aria-hidden="true">ਗ</span>
+                      <span class="tile-label">Gurmukhi</span>
+                    </label>
+
+                    <input
+                      class="tile-input"
+                      type="checkbox"
+                      name="script"
+                      id="script-oriya"
+                      value="oriya"
+                    />
+                    <label class="tile" for="script-oriya">
+                      <span class="tile-icon" aria-hidden="true">ଓ</span>
+                      <span class="tile-label">Odia</span>
+                    </label>
+
+                    <input
+                      class="tile-input"
+                      type="checkbox"
+                      name="script"
+                      id="script-khmer"
+                      value="khmer"
+                    />
+                    <label class="tile" for="script-khmer">
+                      <span class="tile-icon" aria-hidden="true">ក</span>
+                      <span class="tile-label">Khmer</span>
+                    </label>
+
+                    <input
+                      class="tile-input"
+                      type="checkbox"
+                      name="script"
+                      id="script-lao"
+                      value="lao"
+                    />
+                    <label class="tile" for="script-lao">
+                      <span class="tile-icon" aria-hidden="true">ກ</span>
+                      <span class="tile-label">Lao</span>
+                    </label>
+
+                    <input
+                      class="tile-input"
+                      type="checkbox"
+                      name="script"
+                      id="script-myanmar"
+                      value="myanmar"
+                    />
+                    <label class="tile" for="script-myanmar">
+                      <span class="tile-icon" aria-hidden="true">က</span>
+                      <span class="tile-label">Burmese</span>
+                    </label>
+
+                    <input
+                      class="tile-input"
+                      type="checkbox"
+                      name="script"
+                      id="script-ethiopic"
+                      value="ethiopic"
+                    />
+                    <label class="tile" for="script-ethiopic">
+                      <span class="tile-icon" aria-hidden="true">ሀ</span>
+                      <span class="tile-label">Ethiopic</span>
+                    </label>
+
+                    <input
+                      class="tile-input"
+                      type="checkbox"
+                      name="script"
+                      id="script-armenian"
+                      value="armenian"
+                    />
+                    <label class="tile" for="script-armenian">
+                      <span class="tile-icon" aria-hidden="true">Ա</span>
+                      <span class="tile-label">Armenian</span>
+                    </label>
+
+                    <input
+                      class="tile-input"
+                      type="checkbox"
+                      name="script"
+                      id="script-georgian"
+                      value="georgian"
+                    />
+                    <label class="tile" for="script-georgian">
+                      <span class="tile-icon" aria-hidden="true">ა</span>
+                      <span class="tile-label">Georgian</span>
+                    </label>
+                  </div>
+                </div>
               </div>
 
               <p class="group-hint">
                 Farsi/Urdu brings the whole Naskh Arabic font, so it already
-                covers Standard Arabic. More scripts coming later.
+                covers Standard Arabic.
               </p>
             </div>
           </section>
@@ -244,9 +463,19 @@
             <div class="option-group">
               <div class="group-head">
                 <p class="group-label">Axes</p>
-                <button type="button" class="btn-add-axis" id="add-axis-button">
-                  <span aria-hidden="true">+</span> Add axis
-                </button>
+                <div class="group-buttons">
+                  <button
+                    type="button"
+                    class="btn-quiet"
+                    id="reset-axes-button"
+                    title="Put the default axes back"
+                  >
+                    Reset to default
+                  </button>
+                  <button type="button" class="btn-add-axis" id="add-axis-button">
+                    <span aria-hidden="true">+</span> Add axis
+                  </button>
+                </div>
               </div>
 
               <div class="axes-wrap" id="axes-wrap" hidden>
