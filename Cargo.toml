@@ -14,9 +14,19 @@ serde_json = "1.0.151"
 skrifa = "0.47.0"
 babelfont = { git = "https://github.com/simoncozens/babelfont-rs", package = "babelfont", default-features = false, features = [
     "fontir",
-    "rayon",
 ] }
 fontmerge = { git = "https://github.com/simoncozens/babelfont-rs", package = "fontmerge" }
+
+# Rayon wants threads, and babelfont's `rayon` feature turns on fontc's, which
+# builds a thread pool at the start of every compile: on single-threaded wasm
+# that panics with "couldn't build threadpool" and takes the module with it. So
+# the native tools (the size cache builder) compile in parallel and the web
+# build stays sequential.
+[target.'cfg(not(target_family = "wasm"))'.dependencies]
+babelfont = { git = "https://github.com/simoncozens/babelfont-rs", package = "babelfont", default-features = false, features = [
+    "fontir",
+    "rayon",
+] }
 
 [workspace]
 members = ["fakefont-web"]

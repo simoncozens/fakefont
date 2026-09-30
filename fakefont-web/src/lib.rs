@@ -27,6 +27,16 @@ use wasm_bindgen::prelude::*;
 
 use js_sys::Map;
 
+/// Talc rather than the default DLmalloc, on WebAssembly.
+///
+/// Talc is written for this: its wasm notes describe it as a drop-in DLmalloc
+/// replacement that is much smaller and much faster, and the font compiler
+/// allocates a great deal. Guarded the way talc asks — `TalcSyncCell` is only
+/// sound on single-threaded wasm, so a build with threads keeps DLmalloc.
+#[cfg(all(not(target_feature = "atomics"), target_family = "wasm"))]
+#[global_allocator]
+static ALLOCATOR: talc::wasm::WasmDynamicTalc = talc::wasm::new_wasm_dynamic_allocator();
+
 /// A synthetic font under construction.
 #[wasm_bindgen]
 pub struct FakeFont {

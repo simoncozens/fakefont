@@ -21,3 +21,6 @@ console_error_panic_hook = "0.1"
 # Only enabled on wasm, so native builds of the workspace are unaffected.
 [target.'cfg(target_family = "wasm")'.dependencies]
 getrandom = { version = "0.4.3", features = ["wasm_js"] }
+# Talc replaces the default DLmalloc allocation on wasm (see the global
+# allocator in src/lib.rs). Native builds keep the system allocator.
+talc = "5.1"
